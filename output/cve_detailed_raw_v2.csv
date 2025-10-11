@@ -250,3 +250,36 @@ CVE-1999-0145,Sendmail Root Access Vulnerability,"The following products are aff
                                             are
                                             affected, the information is not represented in the table below.","Sept. 30, 1993, 4 a.m.","April 3, 2025, 1:03 a.m.",No,[email protected],,Eric_allman,sendmail,CVSS 2.0,7.2,HIGH,AV:L/AC:L/Au:N/C:C/I:C/A:C,3.9,10,[email protected],https://cvefeed.io/vuln/detail/CVE-1999-0145
 CVE-1999-1312,DEC OpenVMS VAX Local Privilege Escalation Vulnerability,"Vulnerability in DEC OpenVMS VAX 5.5-2 through 5.0, and OpenVMS AXP 1.0, allows local users to gain system privileges.","Feb. 24, 1993, 5 a.m.","April 3, 2025, 1:03 a.m.",No,[email protected],,Dec; Dec,dec_openvms_axp; dec_openvms_vax,CVSS 2.0,7.2,HIGH,AV:L/AC:L/Au:N/C:C/I:C/A:C,3.9,10,[email protected],https://cvefeed.io/vuln/detail/CVE-1999-1312
+CVE-1999-0124,Apache gopher Directory Traversal Vulnerability,"The following products are affected byCVE-1999-0124vulnerability.
+                                            Even ifcvefeed.iois aware of the exact versions of the
+                                            products
+                                            that
+                                            are
+                                            affected, the information is not represented in the table below.","Aug. 9, 1993, 4 a.m.","April 3, 2025, 1:03 a.m.",Yes !,[email protected],,University_of_minnesota,gopherd,CVSS 2.0,10,HIGH,AV:N/AC:L/Au:N/C:C/I:C/A:C,10,10,[email protected],https://cvefeed.io/vuln/detail/CVE-1999-0124
+CVE-1999-1134,HP Vue 3.0 Local Privilege Escalation Vulnerability,"Vulnerability in Vue 3.0 in HP 9.x allows local users to gain root privileges, as fixed by PHSS_4038, PHSS_4055, and PHSS_4066.","May 18, 1994, 4 a.m.","April 3, 2025, 1:03 a.m.",No,[email protected],,Hp,hp-ux,CVSS 2.0,7.2,HIGH,AV:L/AC:L/Au:N/C:C/I:C/A:C,3.9,10,[email protected],https://cvefeed.io/vuln/detail/CVE-1999-1134
+CVE-1999-1219,SGI IRIX Local Root Privilege Escalation,"Vulnerability in sgihelp in the SGI help system and print manager in IRIX 5.2 and earlier allows local users to gain root privileges, possibly through the clogin command.","Aug. 11, 1994, 4 a.m.","April 3, 2025, 1:03 a.m.",No,[email protected],,Sgi,irix,CVSS 2.0,7.2,HIGH,AV:L/AC:L/Au:N/C:C/I:C/A:C,3.9,10,[email protected],https://cvefeed.io/vuln/detail/CVE-1999-1219
+CVE-1999-0181,Turbovote Wall Daemon Remote Command Execution and Elevated Privilege Access Vulnerability,"The following products are affected byCVE-1999-0181vulnerability.
+                                            Even ifcvefeed.iois aware of the exact versions of the
+                                            products
+                                            that
+                                            are
+                                            affected, the information is not represented in the table below.","Jan. 1, 1994, 5 a.m.","April 3, 2025, 1:03 a.m.",Yes !,[email protected],,Rpc.walld,rpc.walld,CVSS 2.0,6.8,MEDIUM,AV:N/AC:M/Au:N/C:P/I:P/A:P,8.6,6.4,[email protected],https://cvefeed.io/vuln/detail/CVE-1999-0181
+CVE-1999-1305,SCO UNIX at Privilege Escalation Vulnerability,"Vulnerability in ""at"" program in SCO UNIX 4.2 and earlier allows local users to gain root access.","Nov. 30, 1994, 5 a.m.","April 3, 2025, 1:03 a.m.",No,[email protected],,Sco; Sco; Sco; Sco; Sco,open_desktop; unix; open_desktop_lite; openserver_enterprise_system; openserver_network_system,CVSS 2.0,7.2,HIGH,AV:L/AC:L/Au:N/C:C/I:C/A:C,3.9,10,[email protected],https://cvefeed.io/vuln/detail/CVE-1999-1305
+CVE-1999-0337,IBM AIX Command Injection Vulnerability,"The following products are affected byCVE-1999-0337vulnerability.
+                                            Even ifcvefeed.iois aware of the exact versions of the
+                                            products
+                                            that
+                                            are
+                                            affected, the information is not represented in the table below.","June 3, 1994, 4 a.m.","April 3, 2025, 1:03 a.m.",Yes !,[email protected],,Ibm,aix,CVSS 2.0,7.5,HIGH,AV:N/AC:L/Au:N/C:P/I:P/A:P,10,6.4,[email protected],https://cvefeed.io/vuln/detail/CVE-1999-0337
+CVE-1999-0113,Cisco rlogin Root Authentication Bypass Vulnerability,"The following products are affected byCVE-1999-0113vulnerability.
+                                            Even ifcvefeed.iois aware of the exact versions of the
+                                            products
+                                            that
+                                            are
+                                            affected, the information is not represented in the table below.","May 23, 1994, 4 a.m.","April 3, 2025, 1:03 a.m.",Yes !,[email protected],,Ibm,aix,CVSS 2.0,10,HIGH,AV:N/AC:L/Au:N/C:C/I:C/A:C,10,10,[email protected],https://cvefeed.io/vuln/detail/CVE-1999-0113
+CVE-1999-1239,HP-UX X11 Authentication Bypass Vulnerability,"The following products are affected byCVE-1999-1239vulnerability.
+                                            Even ifcvefeed.iois aware of the exact versions of the
+                                            products
+                                            that
+                                            are
+                                            affected, the information is not represented in the table below.","July 13, 1994, 4 a.m.","April 3, 2025, 1:03 a.m.",No,[email protected],,Hp,hp-ux,CVSS 2.0,4.6,MEDIUM,AV:L/AC:L/Au:N/C:P/I:P/A:P,3.9,6.4,[email protected],https://cvefeed.io/vuln/detail/CVE-1999-1239
