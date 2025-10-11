@@ -129,3 +129,124 @@ CVE-1999-1123,Sun Source Setuid Root Privilege Escalation Vulnerability,"The fol
                                             that
                                             are
                                             affected, the information is not represented in the table below.","May 20, 1991, 4 a.m.","April 3, 2025, 1:03 a.m.",No,[email protected],,Sun,sunos,CVSS 2.0,7.2,HIGH,AV:L/AC:L/Au:N/C:C/I:C/A:C,3.9,10,[email protected],https://cvefeed.io/vuln/detail/CVE-1999-1123
+CVE-1999-1395,SECURIDY-Director Monitor Utility Elevated Privileges Vulnerability,Vulnerability in Monitor utility (SYS$SHARE:SPISHR.EXE) in VMS 5.0 through 5.4-2 allows local users to gain privileges.,"Nov. 17, 1992, 5 a.m.","April 3, 2025, 1:03 a.m.",No,[email protected],,Dec,dec_openvms,CVSS 2.0,7.2,HIGH,AV:L/AC:L/Au:N/C:C/I:C/A:C,3.9,10,[email protected],https://cvefeed.io/vuln/detail/CVE-1999-1395
+CVE-1999-1466,Cisco Router IP Access Control List Bypass Vulnerability,"Vulnerability in Cisco routers versions 8.2 through 9.1 allows remote attackers to bypass access control lists when extended IP access lists are used on certain interfaces, the IP route cache is enabled, and the access list uses the ""established"" keyword.","Dec. 10, 1992, 5 a.m.","April 3, 2025, 1:03 a.m.",Yes !,[email protected],,Cisco,ios,CVSS 2.0,7.5,HIGH,AV:N/AC:L/Au:N/C:P/I:P/A:P,10,6.4,[email protected],https://cvefeed.io/vuln/detail/CVE-1999-1466
+CVE-1999-1059,AT&T TCP/IP Rexec Daemon Command Execution Vulnerability,Vulnerability in rexec daemon (rexecd) in AT&T TCP/IP 4.0 for various SVR4 systems allows remote attackers to execute arbitrary commands.,"Feb. 25, 1992, 5 a.m.","April 3, 2025, 1:03 a.m.",Yes !,[email protected],,Att,svr4,CVSS 2.0,10,HIGH,AV:N/AC:L/Au:N/C:C/I:C/A:C,10,10,[email protected],https://cvefeed.io/vuln/detail/CVE-1999-1059
+CVE-1999-1021,SunOS NFS UID Overflow Privilege Escalation,"The following products are affected byCVE-1999-1021vulnerability.
+                                            Even ifcvefeed.iois aware of the exact versions of the
+                                            products
+                                            that
+                                            are
+                                            affected, the information is not represented in the table below.","Dec. 30, 1992, 5 a.m.","April 3, 2025, 1:03 a.m.",No,[email protected],,Sun,sunos,CVSS 2.0,7.2,HIGH,AV:L/AC:L/Au:N/C:C/I:C/A:C,3.9,10,[email protected],https://cvefeed.io/vuln/detail/CVE-1999-1021
+CVE-1999-1142,SunOS Setuid Privilege Escalation Vulnerability,"The following products are affected byCVE-1999-1142vulnerability.
+                                            Even ifcvefeed.iois aware of the exact versions of the
+                                            products
+                                            that
+                                            are
+                                            affected, the information is not represented in the table below.","May 27, 1992, 4 a.m.","April 3, 2025, 1:03 a.m.",No,[email protected],,Sun,sunos,CVSS 2.0,7.2,HIGH,AV:L/AC:L/Au:N/C:C/I:C/A:C,3.9,10,[email protected],https://cvefeed.io/vuln/detail/CVE-1999-1142
+CVE-1999-1396,SunOS SPARC Integer Multiplication Emulation Code Buffer Overflow Vulnerability,Vulnerability in integer multiplication emulation code on SPARC architectures for SunOS 4.1 through 4.1.2 allows local users to gain root access or cause a denial of service (crash).,"July 21, 1992, 4 a.m.","April 3, 2025, 1:03 a.m.",No,[email protected],,Sun,sunos,CVSS 2.0,7.2,HIGH,AV:L/AC:L/Au:N/C:C/I:C/A:C,3.9,10,[email protected],https://cvefeed.io/vuln/detail/CVE-1999-1396
+CVE-1999-1121,IBM AIX Default UUCP Configuration Local Privilege Escalation,"The following products are affected byCVE-1999-1121vulnerability.
+                                            Even ifcvefeed.iois aware of the exact versions of the
+                                            products
+                                            that
+                                            are
+                                            affected, the information is not represented in the table below.","March 19, 1992, 5 a.m.","April 3, 2025, 1:03 a.m.",No,[email protected],,Ibm,aix,CVSS 2.0,7.2,HIGH,AV:L/AC:L/Au:N/C:C/I:C/A:C,3.9,10,[email protected],https://cvefeed.io/vuln/detail/CVE-1999-1121
+CVE-1999-0627,"""Rexd Weak Authentication Command Execution Vulnerability in Cisco""","The following products are affected byCVE-1999-0627vulnerability.
+                                            Even ifcvefeed.iois aware of the exact versions of the
+                                            products
+                                            that
+                                            are
+                                            affected, the information is not represented in the table below.","March 1, 1992, 5 a.m.","April 3, 2025, 1:03 a.m.",Yes !,[email protected],,Ibm,aix,CVSS 2.0,0,LOW,AV:N/AC:L/Au:N/C:N/I:N/A:N,10,0,[email protected],https://cvefeed.io/vuln/detail/CVE-1999-0627
+CVE-1999-1056,Apache SQL Injection Vulnerability,"The following products are affected byCVE-1999-1056vulnerability.
+                                            Even ifcvefeed.iois aware of the exact versions of the
+                                            products
+                                            that
+                                            are
+                                            affected, the information is not represented in the table below.","Dec. 31, 1992, 5 a.m.","Nov. 7, 2023, 1:55 a.m.",No,[email protected],,,,,,,,,,,https://cvefeed.io/vuln/detail/CVE-1999-1056
+CVE-1999-1119,IBM AIX Anonymous FTP Command Injection,"The following products are affected byCVE-1999-1119vulnerability.
+                                            Even ifcvefeed.iois aware of the exact versions of the
+                                            products
+                                            that
+                                            are
+                                            affected, the information is not represented in the table below.","April 27, 1992, 4 a.m.","April 3, 2025, 1:03 a.m.",Yes !,[email protected],,Ibm,aix,CVSS 2.0,10,HIGH,AV:N/AC:L/Au:N/C:C/I:C/A:C,10,10,[email protected],https://cvefeed.io/vuln/detail/CVE-1999-1119
+CVE-1999-0214,Apache HTTP Server ICMP Flood DoS,"The following products are affected byCVE-1999-0214vulnerability.
+                                            Even ifcvefeed.iois aware of the exact versions of the
+                                            products
+                                            that
+                                            are
+                                            affected, the information is not represented in the table below.","July 21, 1992, 4 a.m.","April 3, 2025, 1:03 a.m.",Yes !,[email protected],,Sun,sunos,CVSS 2.0,10,HIGH,AV:N/AC:L/Au:N/C:C/I:C/A:C,10,10,[email protected],https://cvefeed.io/vuln/detail/CVE-1999-0214
+CVE-1999-1306,Cisco IOS Denial of Service (DoS),"The following products are affected byCVE-1999-1306vulnerability.
+                                            Even ifcvefeed.iois aware of the exact versions of the
+                                            products
+                                            that
+                                            are
+                                            affected, the information is not represented in the table below.","Dec. 10, 1992, 5 a.m.","April 3, 2025, 1:03 a.m.",Yes !,[email protected],,Cisco,ios,CVSS 2.0,7.5,HIGH,AV:N/AC:L/Au:N/C:P/I:P/A:P,10,6.4,[email protected],https://cvefeed.io/vuln/detail/CVE-1999-1306
+CVE-1999-0117,IBM AIX Root Privilege Escalation,"The following products are affected byCVE-1999-0117vulnerability.
+                                            Even ifcvefeed.iois aware of the exact versions of the
+                                            products
+                                            that
+                                            are
+                                            affected, the information is not represented in the table below.","March 31, 1992, 5 a.m.","April 3, 2025, 1:03 a.m.",No,[email protected],,Ibm,aix,CVSS 2.0,7.2,HIGH,AV:L/AC:L/Au:N/C:C/I:C/A:C,3.9,10,[email protected],https://cvefeed.io/vuln/detail/CVE-1999-0117
+CVE-1999-0168,NFS PortMapper Proxy Privilege Escalation Vulnerability in RPC Service,"The following products are affected byCVE-1999-0168vulnerability.
+                                            Even ifcvefeed.iois aware of the exact versions of the
+                                            products
+                                            that
+                                            are
+                                            affected, the information is not represented in the table below.","June 4, 1992, 4 a.m.","April 3, 2025, 1:03 a.m.",Yes !,[email protected],,Sun,sunos,CVSS 2.0,7.5,HIGH,AV:N/AC:L/Au:N/C:P/I:P/A:P,10,6.4,[email protected],https://cvefeed.io/vuln/detail/CVE-1999-0168
+CVE-1999-1137,Solaris SunOS Audio Device Information Disclosure,"The following products are affected byCVE-1999-1137vulnerability.
+                                            Even ifcvefeed.iois aware of the exact versions of the
+                                            products
+                                            that
+                                            are
+                                            affected, the information is not represented in the table below.","Oct. 1, 1993, 4 a.m.","April 3, 2025, 1:03 a.m.",No,[email protected],,Sun; Sun,solaris; sunos,CVSS 2.0,2.1,LOW,AV:L/AC:L/Au:N/C:P/I:N/A:N,3.9,2.9,[email protected],https://cvefeed.io/vuln/detail/CVE-1999-1137
+CVE-1999-1318,SunOS su Path Manipulation vulnerability,"The following products are affected byCVE-1999-1318vulnerability.
+                                            Even ifcvefeed.iois aware of the exact versions of the
+                                            products
+                                            that
+                                            are
+                                            affected, the information is not represented in the table below.","Sept. 17, 1993, 4 a.m.","April 3, 2025, 1:03 a.m.",No,[email protected],,Sun,sunos,CVSS 2.0,7.2,HIGH,AV:L/AC:L/Au:N/C:C/I:C/A:C,3.9,10,[email protected],https://cvefeed.io/vuln/detail/CVE-1999-1318
+CVE-1999-0312,HP ypbind Authentication Bypass Vulnerability,"The following products are affected byCVE-1999-0312vulnerability.
+                                            Even ifcvefeed.iois aware of the exact versions of the
+                                            products
+                                            that
+                                            are
+                                            affected, the information is not represented in the table below.","Jan. 13, 1993, 5 a.m.","April 3, 2025, 1:03 a.m.",Yes !,[email protected],,Hp,hp-ux,CVSS 2.0,5,MEDIUM,AV:N/AC:L/Au:N/C:P/I:N/A:N,10,2.9,[email protected],https://cvefeed.io/vuln/detail/CVE-1999-0312
+CVE-1999-1138,SCO UNIX System V/386 Release Security Dir traversal via World-Writable Temp Folders,"The following products are affected byCVE-1999-1138vulnerability.
+                                            Even ifcvefeed.iois aware of the exact versions of the
+                                            products
+                                            that
+                                            are
+                                            affected, the information is not represented in the table below.","Sept. 17, 1993, 4 a.m.","April 3, 2025, 1:03 a.m.",Yes !,[email protected],,Sco; Sco; Sco; Sco,openserver; open_desktop; unix; open_desktop_lite,CVSS 2.0,10,HIGH,AV:N/AC:L/Au:N/C:C/I:C/A:C,10,10,[email protected],https://cvefeed.io/vuln/detail/CVE-1999-1138
+CVE-1999-1162,SCO UNIX passwd Denial of Service,Vulnerability in passwd in SCO UNIX 4.0 and earlier allows attackers to cause a denial of service by preventing users from being able to log into the system.,"May 24, 1993, 4 a.m.","April 3, 2025, 1:03 a.m.",Yes !,[email protected],,Sco; Sco,open_desktop; unix,CVSS 2.0,6.4,MEDIUM,AV:N/AC:L/Au:N/C:N/I:P/A:P,10,4.9,[email protected],https://cvefeed.io/vuln/detail/CVE-1999-1162
+CVE-1999-1218,Commodore Amiga UNIX File Reading Local Vulnerability,Vulnerability in finger in Commodore Amiga UNIX 2.1p2a and earlier allows local users to read arbitrary files.,"Feb. 18, 1993, 5 a.m.","April 3, 2025, 1:03 a.m.",No,[email protected],,Commodore,amiga_unix,CVSS 2.0,2.1,LOW,AV:L/AC:L/Au:N/C:P/I:N/A:N,3.9,2.9,[email protected],https://cvefeed.io/vuln/detail/CVE-1999-1218
+CVE-1999-1507,Sun SunOS Permissions Vulnerability (Local Privilege Escalation),"The following products are affected byCVE-1999-1507vulnerability.
+                                            Even ifcvefeed.iois aware of the exact versions of the
+                                            products
+                                            that
+                                            are
+                                            affected, the information is not represented in the table below.","Feb. 3, 1993, 5 a.m.","April 3, 2025, 1:03 a.m.",No,[email protected],,Sun,sunos,CVSS 2.0,7.2,HIGH,AV:L/AC:L/Au:N/C:C/I:C/A:C,3.9,10,[email protected],https://cvefeed.io/vuln/detail/CVE-1999-1507
+CVE-1999-0334,Solaris Fsck Privilege Escalation Vulnerability,"The following products are affected byCVE-1999-0334vulnerability.
+                                            Even ifcvefeed.iois aware of the exact versions of the
+                                            products
+                                            that
+                                            are
+                                            affected, the information is not represented in the table below.","Dec. 16, 1993, 5 a.m.","April 3, 2025, 1:03 a.m.",No,[email protected],,Sun; Sun,solaris; sunos,CVSS 2.0,7.2,HIGH,AV:L/AC:L/Au:N/C:C/I:C/A:C,3.9,10,[email protected],https://cvefeed.io/vuln/detail/CVE-1999-0334
+CVE-1999-1216,Cisco Routers IP Source Routing Denial of Service Vulnerability,"The following products are affected byCVE-1999-1216vulnerability.
+                                            Even ifcvefeed.iois aware of the exact versions of the
+                                            products
+                                            that
+                                            are
+                                            affected, the information is not represented in the table below.","April 22, 1993, 4 a.m.","April 3, 2025, 1:03 a.m.",Yes !,[email protected],,Cisco,router,CVSS 2.0,7.5,HIGH,AV:N/AC:L/Au:N/C:P/I:P/A:P,10,6.4,[email protected],https://cvefeed.io/vuln/detail/CVE-1999-1216
+CVE-1999-1215,Novell Netware LOGIN.EXE Privilege Escalation Vulnerability,"The following products are affected byCVE-1999-1215vulnerability.
+                                            Even ifcvefeed.iois aware of the exact versions of the
+                                            products
+                                            that
+                                            are
+                                            affected, the information is not represented in the table below.","Sept. 16, 1993, 4 a.m.","April 3, 2025, 1:03 a.m.",No,[email protected],,Novell,netware,CVSS 2.0,4.6,MEDIUM,AV:L/AC:L/Au:N/C:P/I:P/A:P,3.9,6.4,[email protected],https://cvefeed.io/vuln/detail/CVE-1999-1215
+CVE-1999-0145,Sendmail Root Access Vulnerability,"The following products are affected byCVE-1999-0145vulnerability.
+                                            Even ifcvefeed.iois aware of the exact versions of the
+                                            products
+                                            that
+                                            are
+                                            affected, the information is not represented in the table below.","Sept. 30, 1993, 4 a.m.","April 3, 2025, 1:03 a.m.",No,[email protected],,Eric_allman,sendmail,CVSS 2.0,7.2,HIGH,AV:L/AC:L/Au:N/C:C/I:C/A:C,3.9,10,[email protected],https://cvefeed.io/vuln/detail/CVE-1999-0145
+CVE-1999-1312,DEC OpenVMS VAX Local Privilege Escalation Vulnerability,"Vulnerability in DEC OpenVMS VAX 5.5-2 through 5.0, and OpenVMS AXP 1.0, allows local users to gain system privileges.","Feb. 24, 1993, 5 a.m.","April 3, 2025, 1:03 a.m.",No,[email protected],,Dec; Dec,dec_openvms_axp; dec_openvms_vax,CVSS 2.0,7.2,HIGH,AV:L/AC:L/Au:N/C:C/I:C/A:C,3.9,10,[email protected],https://cvefeed.io/vuln/detail/CVE-1999-1312
