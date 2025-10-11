@@ -1,0 +1,7 @@
+cve_id,title,description,cvss_score,cvss_severity,cvss_version,cvss_vector,exploitability_score,impact_score,published_date,last_modified,remotely_exploit,source,source_from_table,category,affected_vendors,affected_products,attack_vector,attack_complexity,privileges_required,user_interaction,scope,confidentiality_impact,integrity_impact,availability_impact,url
+CVE-2025-61590,Cursor is vulnerable to RCE via .code-workspace files using Prompt Injection,"The following products are affected byCVE-2025-61590vulnerability.
+                                            Even ifcvefeed.iois aware of the exact versions of the
+                                            products
+                                            that
+                                            are
+                                            affected, the information is not represented in the table below.",7.5,HIGH,CVSS 3.1,CVSS:3.1/AV:N/AC:H/PR:L/UI:N/S:U/C:H/I:H/A:H,1.6,5.9,"Oct. 3, 2025, 5:15 p.m.","Oct. 6, 2025, 2:56 p.m.",Yes !,[email protected],[email protected],Misconfiguration,Anysphere,cursor,Network,High,Low,None,Unchanged,High,High,High,https://cvefeed.io/vuln/detail/CVE-2025-61590
