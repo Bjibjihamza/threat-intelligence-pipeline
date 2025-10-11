@@ -396,7 +396,7 @@ if __name__ == "__main__":
     scraper = CVEScraper()
     
     cve_urls = []
-    with open('data/test_to_scrap.csv', 'r', encoding='utf-8') as f:
+    with open('cve_sampled_by_year.csv', 'r', encoding='utf-8') as f:
         reader = csv.DictReader(f)
         for row in reader:
             cve_urls.append((row['cve_id'], row['url']))
