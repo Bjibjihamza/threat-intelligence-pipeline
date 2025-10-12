@@ -1,0 +1,40 @@
+cve_id,title,description,published_date,last_modified,remotely_exploit,source,category,affected_products,cvss_scores,url
+CVE-1999-0095,Sendmail Command Injection Vulnerability,"The following products are affected byCVE-1999-0095vulnerability.
+                                            Even ifcvefeed.iois aware of the exact versions of the
+                                            products
+                                            that
+                                            are
+                                            affected, the information is not represented in the table below.","Oct. 1, 1988, 4 a.m.","April 3, 2025, 1:03 a.m.",Yes !,[email protected],,"[{""id"": ""1"", ""vendor"": ""Eric_allman"", ""product"": ""sendmail""}]","[{""score"": ""10"", ""version"": ""CVSS 2.0"", ""severity"": ""HIGH"", ""vector"": ""AV:N/AC:L/Au:N/C:C/I:C/A:C"", ""exploitability_score"": ""10"", ""impact_score"": ""10"", ""source"": ""[email protected]""}]",https://cvefeed.io/vuln/detail/CVE-1999-0095
+CVE-1999-0082,Tenable FTP Server Command Injection Vulnerability,"The following products are affected byCVE-1999-0082vulnerability.
+                                            Even ifcvefeed.iois aware of the exact versions of the
+                                            products
+                                            that
+                                            are
+                                            affected, the information is not represented in the table below.","Nov. 11, 1988, 5 a.m.","April 3, 2025, 1:03 a.m.",Yes !,[email protected],,"[{""id"": ""1"", ""vendor"": ""Ftp"", ""product"": ""ftp""}, {""id"": ""1"", ""vendor"": ""Ftpcd"", ""product"": ""ftpcd""}]","[{""score"": ""10"", ""version"": ""CVSS 2.0"", ""severity"": ""HIGH"", ""vector"": ""AV:N/AC:L/Au:N/C:C/I:C/A:C"", ""exploitability_score"": ""10"", ""impact_score"": ""10"", ""source"": ""[email protected]""}]",https://cvefeed.io/vuln/detail/CVE-1999-0082
+CVE-1999-1471,"""BSD Passwd Buffer Overflow Root Privilege Escalation""","The following products are affected byCVE-1999-1471vulnerability.
+                                            Even ifcvefeed.iois aware of the exact versions of the
+                                            products
+                                            that
+                                            are
+                                            affected, the information is not represented in the table below.","Jan. 1, 1989, 5 a.m.","April 3, 2025, 1:03 a.m.",No,[email protected],,"[{""id"": ""1"", ""vendor"": ""Bsd"", ""product"": ""bsd""}]","[{""score"": ""7.2"", ""version"": ""CVSS 2.0"", ""severity"": ""HIGH"", ""vector"": ""AV:L/AC:L/Au:N/C:C/I:C/A:C"", ""exploitability_score"": ""3.9"", ""impact_score"": ""10"", ""source"": ""[email protected]""}]",https://cvefeed.io/vuln/detail/CVE-1999-1471
+CVE-1999-1122,SunOS Restore Privilege Escalation Vulnerability,Vulnerability in restore in SunOS 4.0.3 and earlier allows local users to gain privileges.,"July 26, 1989, 4 a.m.","April 3, 2025, 1:03 a.m.",No,[email protected],,"[{""id"": ""1"", ""vendor"": ""Sun"", ""product"": ""sunos""}]","[{""score"": ""4.6"", ""version"": ""CVSS 2.0"", ""severity"": ""MEDIUM"", ""vector"": ""AV:L/AC:L/Au:N/C:P/I:P/A:P"", ""exploitability_score"": ""3.9"", ""impact_score"": ""6.4"", ""source"": ""[email protected]""}]",https://cvefeed.io/vuln/detail/CVE-1999-1122
+CVE-1999-1467,SunOS rcp Command Execution Vulnerability,"Vulnerability in rcp on SunOS 4.0.x allows remote attackers from trusted hosts to execute arbitrary commands as root, possibly related to the configuration of the nobody user.","Oct. 26, 1989, 4 a.m.","April 3, 2025, 1:03 a.m.",Yes !,[email protected],,"[{""id"": ""1"", ""vendor"": ""Sun"", ""product"": ""sunos""}]","[{""score"": ""10"", ""version"": ""CVSS 2.0"", ""severity"": ""HIGH"", ""vector"": ""AV:N/AC:L/Au:N/C:C/I:C/A:C"", ""exploitability_score"": ""10"", ""impact_score"": ""10"", ""source"": ""[email protected]""}]",https://cvefeed.io/vuln/detail/CVE-1999-1467
+CVE-1999-1506,SunOS Sendmail Sensitive Path Analysis,"Vulnerability in SMI Sendmail 4.0 and earlier, on SunOS up to 4.0.3, allows remote attackers to access user bin.","Jan. 29, 1990, 5 a.m.","April 3, 2025, 1:03 a.m.",Yes !,[email protected],,"[{""id"": ""1"", ""vendor"": ""Sun"", ""product"": ""sunos""}]","[{""score"": ""7.5"", ""version"": ""CVSS 2.0"", ""severity"": ""HIGH"", ""vector"": ""AV:N/AC:L/Au:N/C:P/I:P/A:P"", ""exploitability_score"": ""10"", ""impact_score"": ""6.4"", ""source"": ""[email protected]""}]",https://cvefeed.io/vuln/detail/CVE-1999-1506
+CVE-1999-0084,Apache NFS Privilege Escalation File System Vulnerability,"The following products are affected byCVE-1999-0084vulnerability.
+                                            Even ifcvefeed.iois aware of the exact versions of the
+                                            products
+                                            that
+                                            are
+                                            affected, the information is not represented in the table below.","May 1, 1990, 4 a.m.","April 3, 2025, 1:03 a.m.",No,[email protected],,"[{""id"": ""1"", ""vendor"": ""Sun"", ""product"": ""nfs""}]","[{""score"": ""7.2"", ""version"": ""CVSS 2.0"", ""severity"": ""HIGH"", ""vector"": ""AV:L/AC:L/Au:N/C:C/I:C/A:C"", ""exploitability_score"": ""3.9"", ""impact_score"": ""10"", ""source"": ""[email protected]""}, {""score"": ""8.4"", ""version"": ""CVSS 3.1"", ""severity"": ""HIGH"", ""vector"": ""CVSS:3.1/AV:L/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"", ""exploitability_score"": ""2.5"", ""impact_score"": ""5.9"", ""source"": ""134c704f-9b21-4f2e-91b3-4a467353bcc0""}]",https://cvefeed.io/vuln/detail/CVE-1999-0084
+CVE-2000-0388,FreeBSD libmytinfo Buffer Overflow Vulnerability,"The following products are affected byCVE-2000-0388vulnerability.
+                                            Even ifcvefeed.iois aware of the exact versions of the
+                                            products
+                                            that
+                                            are
+                                            affected, the information is not represented in the table below.","May 9, 1990, 4 a.m.","April 3, 2025, 1:03 a.m.",Yes !,[email protected],,"[{""id"": ""1"", ""vendor"": ""Freebsd"", ""product"": ""freebsd""}]","[{""score"": ""7.5"", ""version"": ""CVSS 2.0"", ""severity"": ""HIGH"", ""vector"": ""AV:N/AC:L/Au:N/C:P/I:P/A:P"", ""exploitability_score"": ""10"", ""impact_score"": ""6.4"", ""source"": ""[email protected]""}]",https://cvefeed.io/vuln/detail/CVE-2000-0388
+CVE-1999-0209,SunView (SunTools) selection_svc Remote File Read Vulnerability,"The following products are affected byCVE-1999-0209vulnerability.
+                                            Even ifcvefeed.iois aware of the exact versions of the
+                                            products
+                                            that
+                                            are
+                                            affected, the information is not represented in the table below.","Aug. 14, 1990, 4 a.m.","April 3, 2025, 1:03 a.m.",Yes !,[email protected],,"[{""id"": ""1"", ""vendor"": ""Sun"", ""product"": ""sunos""}]","[{""score"": ""5"", ""version"": ""CVSS 2.0"", ""severity"": ""MEDIUM"", ""vector"": ""AV:N/AC:L/Au:N/C:P/I:N/A:N"", ""exploitability_score"": ""10"", ""impact_score"": ""2.9"", ""source"": ""[email protected]""}]",https://cvefeed.io/vuln/detail/CVE-1999-0209
