@@ -31,8 +31,7 @@ class CVEScraper:
                 'remotely_exploit': '',
                 'source': '',
                 'category': '',
-                'affected_vendors': '',
-                'affected_products': '',
+                'affected_products': [],  # Liste de produits
                 'cvss_scores': [],  # Liste de tous les scores CVSS
                 'url': url
             }
@@ -117,77 +116,118 @@ class CVEScraper:
     
     def _extract_all_cvss_scores(self, soup, cve_data):
         """Extract ALL CVSS scores (multiple versions) from the scoring table"""
-        cvss_table = soup.find('table', class_='table-borderless')
-        if not cvss_table:
-            cvss_table = soup.find('table', class_='table-centered')
+        # Chercher la table CVSS spécifiquement
+        cvss_tables = soup.find_all('table', class_='table-borderless')
         
-        if cvss_table:
-            rows = cvss_table.find_all('tr')
-            for row in rows[1:]:  # Skip header row
-                cells = row.find_all('td')
-                if len(cells) >= 7:
-                    cvss_entry = {}
+        for table in cvss_tables:
+            # Vérifier que c'est bien la table CVSS (elle a des colonnes Score, Version, etc.)
+            thead = table.find('thead')
+            if thead:
+                headers = [th.get_text(strip=True) for th in thead.find_all('th')]
+                # Si on trouve "Score" et "Vector" dans les headers, c'est la bonne table
+                if 'Score' in headers and 'Vector' in headers:
+                    rows = table.find('tbody').find_all('tr') if table.find('tbody') else table.find_all('tr')[1:]
                     
-                    # Score
-                    score_btn = cells[0].find('b')
-                    if score_btn:
-                        cvss_entry['score'] = score_btn.get_text(strip=True)
+                    for row in rows:
+                        cells = row.find_all('td')
+                        if len(cells) >= 7:
+                            cvss_entry = {}
+                            
+                            # Score
+                            score_btn = cells[0].find('b')
+                            if score_btn:
+                                cvss_entry['score'] = score_btn.get_text(strip=True)
+                            
+                            # Version
+                            cvss_entry['version'] = cells[1].get_text(strip=True)
+                            
+                            # Severity
+                            cvss_entry['severity'] = cells[2].get_text(strip=True)
+                            
+                            # Vector (le plus important!)
+                            vector_input = cells[3].find('input')
+                            if vector_input:
+                                cvss_entry['vector'] = vector_input.get('value', '')
+                            
+                            # Exploitability Score
+                            exploit_btn = cells[4].find('b')
+                            if exploit_btn:
+                                exploit_text = exploit_btn.get_text(strip=True)
+                                if exploit_text:  # Seulement si non vide
+                                    cvss_entry['exploitability_score'] = exploit_text
+                            
+                            # Impact Score
+                            impact_btn = cells[5].find('b')
+                            if impact_btn:
+                                impact_text = impact_btn.get_text(strip=True)
+                                if impact_text:  # Seulement si non vide
+                                    cvss_entry['impact_score'] = impact_text
+                            
+                            # Source
+                            source_text = cells[6].get_text(strip=True)
+                            if source_text:
+                                cvss_entry['source'] = source_text
+                            
+                            # Ajouter cette entrée à la liste
+                            if cvss_entry.get('vector'):  # Seulement si on a un vecteur
+                                cve_data['cvss_scores'].append(cvss_entry)
                     
-                    # Version
-                    cvss_entry['version'] = cells[1].get_text(strip=True)
-                    
-                    # Severity
-                    cvss_entry['severity'] = cells[2].get_text(strip=True)
-                    
-                    # Vector (le plus important!)
-                    vector_input = cells[3].find('input', class_='apikey-value')
-                    if not vector_input:
-                        vector_input = cells[3].find('input')
-                    if vector_input:
-                        cvss_entry['vector'] = vector_input.get('value', '')
-                    
-                    # Exploitability Score
-                    exploit_btn = cells[4].find('b')
-                    if exploit_btn:
-                        cvss_entry['exploitability_score'] = exploit_btn.get_text(strip=True)
-                    
-                    # Impact Score
-                    impact_btn = cells[5].find('b')
-                    if impact_btn:
-                        cvss_entry['impact_score'] = impact_btn.get_text(strip=True)
-                    
-                    # Source
-                    cvss_entry['source'] = cells[6].get_text(strip=True)
-                    
-                    # Ajouter cette entrée à la liste
-                    cve_data['cvss_scores'].append(cvss_entry)
-            
-            logging.info(f"    Found {len(cve_data['cvss_scores'])} CVSS score(s)")
+                    logging.info(f"    Found {len(cve_data['cvss_scores'])} CVSS score(s)")
+                    break  # On a trouvé la bonne table, on arrête
     
     def _extract_affected_products(self, soup, cve_data):
         """Extract affected vendors and products"""
-        product_table = soup.find('table', class_='table-nowrap')
+        # Chercher la section "Affected Products"
+        affected_section = None
+        for h5 in soup.find_all('h5'):
+            if 'Affected Products' in h5.get_text():
+                affected_section = h5.find_parent('div', class_='card-body')
+                break
         
-        if product_table:
-            vendors = []
-            products = []
-            rows = product_table.find_all('tr')[1:]
+        if not affected_section:
+            # Méthode 2: Chercher directement la table avec class table-nowrap
+            product_table = soup.find('table', class_='table-nowrap')
+            if product_table:
+                affected_section = product_table.find_parent('div', class_='card-body')
+        
+        if affected_section:
+            # Vérifier d'abord s'il y a le message "No affected product"
+            no_product_msg = affected_section.find('p', class_='text-warning')
+            if no_product_msg and 'No affected product' in no_product_msg.get_text():
+                logging.info("    No affected products found")
+                return
             
-            for row in rows:
-                cells = row.find_all('td')
-                if len(cells) >= 3:
-                    vendor = cells[1].get_text(strip=True)
-                    product = cells[2].get_text(strip=True)
+            # Chercher la table des produits
+            product_table = affected_section.find('table', class_='table-nowrap')
+            
+            if product_table:
+                tbody = product_table.find('tbody')
+                if tbody:
+                    rows = tbody.find_all('tr')
                     
-                    if vendor:
-                        vendors.append(vendor)
-                    if product:
-                        products.append(product)
-            
-            if vendors:
-                cve_data['affected_vendors'] = '; '.join(vendors)
-            if products:
-                cve_data['affected_products'] = '; '.join(products)
+                    for row in rows:
+                        cells = row.find_all('td')
+                        if len(cells) >= 3:
+                            # ID est dans cells[0]
+                            product_id = cells[0].get_text(strip=True)
+                            # Vendor est dans cells[1]
+                            vendor = cells[1].get_text(strip=True)
+                            # Product est dans cells[2]
+                            product = cells[2].get_text(strip=True)
+                            
+                            if vendor or product:
+                                product_entry = {
+                                    'id': product_id,
+                                    'vendor': vendor,
+                                    'product': product
+                                }
+                                cve_data['affected_products'].append(product_entry)
+                    
+                    logging.info(f"    Found {len(cve_data['affected_products'])} affected product(s)")
+            else:
+                logging.info("    No product table found")
+        else:
+            logging.info("    No affected products section found")
     
     def scrape_multiple_cves(self, cve_list, output_file='cve_data.csv', delay=1):
         """
@@ -229,7 +269,7 @@ class CVEScraper:
                     logging.info(f"    ✓ Scores: {scores_summary}")
                     logging.info(f"    ✓ Category: {data.get('category', 'N/A')}")
                     
-                    # Save incrementally
+                    # Save incrementally - ONE ROW PER CVE
                     self._save_to_csv(data, output_file)
                 else:
                     logging.warning(f"    ✗ Failed to scrape {cve_id}")
@@ -247,66 +287,35 @@ class CVEScraper:
         return results
     
     def _save_to_csv(self, data, output_file):
-        """Save CVE data to CSV with flattened CVSS scores"""
+        """Save CVE data to CSV - ONE ROW PER CVE with JSON fields"""
         os.makedirs(os.path.dirname(output_file) if os.path.dirname(output_file) else '.', exist_ok=True)
         
-        # Créer une ligne pour chaque version CVSS
-        if not data['cvss_scores']:
-            # Si pas de scores, sauvegarder quand même avec données de base
-            row = {
-                'cve_id': data['cve_id'],
-                'title': data['title'],
-                'description': data['description'],
-                'published_date': data['published_date'],
-                'last_modified': data['last_modified'],
-                'remotely_exploit': data['remotely_exploit'],
-                'source': data['source'],
-                'category': data['category'],
-                'affected_vendors': data['affected_vendors'],
-                'affected_products': data['affected_products'],
-                'cvss_version': '',
-                'cvss_score': '',
-                'cvss_severity': '',
-                'cvss_vector': '',
-                'exploitability_score': '',
-                'impact_score': '',
-                'cvss_source': '',
-                'url': data['url']
-            }
-            self._write_csv_row(output_file, row)
-        else:
-            # Une ligne par version CVSS
-            for cvss in data['cvss_scores']:
-                row = {
-                    'cve_id': data['cve_id'],
-                    'title': data['title'],
-                    'description': data['description'],
-                    'published_date': data['published_date'],
-                    'last_modified': data['last_modified'],
-                    'remotely_exploit': data['remotely_exploit'],
-                    'source': data['source'],
-                    'category': data['category'],
-                    'affected_vendors': data['affected_vendors'],
-                    'affected_products': data['affected_products'],
-                    'cvss_version': cvss.get('version', ''),
-                    'cvss_score': cvss.get('score', ''),
-                    'cvss_severity': cvss.get('severity', ''),
-                    'cvss_vector': cvss.get('vector', ''),
-                    'exploitability_score': cvss.get('exploitability_score', ''),
-                    'impact_score': cvss.get('impact_score', ''),
-                    'cvss_source': cvss.get('source', ''),
-                    'url': data['url']
-                }
-                self._write_csv_row(output_file, row)
+        # Convertir les listes en JSON strings
+        row = {
+            'cve_id': data['cve_id'],
+            'title': data['title'],
+            'description': data['description'],
+            'published_date': data['published_date'],
+            'last_modified': data['last_modified'],
+            'remotely_exploit': data['remotely_exploit'],
+            'source': data['source'],
+            'category': data['category'],
+            # JSON fields
+            'affected_products': json.dumps(data['affected_products'], ensure_ascii=False) if data['affected_products'] else '[]',
+            'cvss_scores': json.dumps(data['cvss_scores'], ensure_ascii=False) if data['cvss_scores'] else '[]',
+            'url': data['url']
+        }
+        
+        self._write_csv_row(output_file, row)
     
     def _write_csv_row(self, output_file, row):
         """Write a single row to CSV"""
         fieldnames = [
             'cve_id', 'title', 'description',
             'published_date', 'last_modified', 'remotely_exploit',
-            'source', 'category', 'affected_vendors', 'affected_products',
-            'cvss_version', 'cvss_score', 'cvss_severity', 'cvss_vector',
-            'exploitability_score', 'impact_score', 'cvss_source',
+            'source', 'category',
+            'affected_products',  # JSON
+            'cvss_scores',  # JSON
             'url'
         ]
         
@@ -330,7 +339,7 @@ if __name__ == "__main__":
     
     results = scraper.scrape_multiple_cves(
         cve_urls, 
-        output_file='output/cve_detailed_raw_v2.csv',
+        output_file='output/cve_detailed_raw_vf.csv',
         delay=2
     )
     
@@ -346,3 +355,6 @@ if __name__ == "__main__":
         for cvss in sample['cvss_scores']:
             logging.info(f"  - {cvss.get('version')}: {cvss.get('score')} ({cvss.get('severity')})")
             logging.info(f"    Vector: {cvss.get('vector')}")
+        logging.info(f"Affected Products ({len(sample['affected_products'])} items):")
+        for prod in sample['affected_products']:
+            logging.info(f"  - {prod.get('vendor')} / {prod.get('product')}")
