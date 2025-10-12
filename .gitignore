@@ -1,51 +1,66 @@
-# ===============================
-# General
-# ===============================
+# ==============================
+# 🔧 Python / Environment
+# ==============================
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
-*.log
-*.tmp
-*.bak
-.DS_Store
+.venv/
+venv/
+env/
+ENV/
+.ipynb_checkpoints/
+*.egg-info/
+*.egg
+dist/
+build/
+.cache/
+.pytest_cache/
+
+# ==============================
+# ⚙️ Configuration / Secrets
+# ==============================
 .env
+.env.*
+*.bak
+*.tmp
+*.log
+
+# ==============================
+# 📁 Data files (non versionnées)
+# ==============================
+# -> garde uniquement les fichiers finaux exportés ou échantillons légers
+Data/Raw/
+archive/Data/
+logs/
+
+# ==============================
+# 🧠 Jupyter / Notebooks
+# ==============================
 *.ipynb_checkpoints/
+.notebooks_temp/
+*.ipynb_save/
+**/.ipynb_checkpoints/
 
-# ===============================
-# Project structure exclusions
-# ===============================
+# ==============================
+# 📦 Output / Artifacts
+# ==============================
+output/
+!output/README.md                      # si tu veux garder un fichier d’explication
+*.zip
 
-# Ignore back folder (temporary/test scripts)
-back/
+# ==============================
+# 🖥️ OS & IDE files
+# ==============================
+.DS_Store
+Thumbs.db
+desktop.ini
 
-# ===============================
-# Data files (can be downloaded again)
-# ===============================
-data/*.zip
-data/*.json
-data/*.json.zip
-
-# ===============================
-# Checkpoints / Experiments
-# ===============================
-*.ckpt
-*.checkpoint
-*.pt
-*.pth
-*.h5
-
-# ===============================
-# IDE / Environment / System files
-# ===============================
+# ==============================
+# 🧰 VS Code / PyCharm / Misc
+# ==============================
 .vscode/
 .idea/
 *.swp
 *.swo
-*.swn
-*.swo
-*.orig
-.mypy_cache/
-.venv/
-venv/
-cenv/
+~$*
