@@ -9,19 +9,23 @@
 from pathlib import Path
 import sys
 
-# Add .../src to sys.path for absolute imports: tip.*
-sys.path.append(str(Path(__file__).resolve().parents[2]))
+# If you run this file directly from its folder, keep this.
+# If you run with:  python -m batch.transform.bronze_to_silver  (from src/)
+# you can remove the sys.path.append line.
+sys.path.append(str(Path(__file__).resolve().parents[2]))  # -> <repo>/src
 
 import logging
 from datetime import datetime
 import re, json
 import numpy as np
 import pandas as pd
-from sqlalchemy import create_engine
 from dateutil import parser
 
-from tip.load.load_silver_layer import (
-    create_db_engine,
+# ✅ Use central connection manager (single DB, multi-schemas)
+from database.connection import create_db_engine, get_schema_name
+
+# ✅ Import silver loader from your package (not tip.*)
+from batch.load.load_silver_layer import (
     load_silver_layer,
     refresh_materialized_views,
 )
@@ -47,16 +51,17 @@ pd.set_option('display.max_columns', None)
 pd.set_option('display.float_format', '{:.2f}'.format)
 
 # ----------------------------------------------------------------------------
-# DATA LOADING (from bronze/raw schema)
+# DATA LOADING (from bronze schema)
 # ----------------------------------------------------------------------------
 def load_raw_data(engine, limit=None):
-    """Load raw CVE data from PostgreSQL"""
+    """Load raw CVE data from PostgreSQL (bronze layer)"""
     logger.info("📥 Loading raw data from bronze layer...")
+    bronze_schema = get_schema_name("bronze")  # typically 'raw'
 
     if limit:
         df = pd.read_sql(f"""
             SELECT * 
-            FROM raw.cve_details
+            FROM {bronze_schema}.cve_details
             ORDER BY published_date DESC NULLS LAST
             LIMIT {int(limit)}
         """, engine)
@@ -64,21 +69,21 @@ def load_raw_data(engine, limit=None):
         return df
 
     # original path (full table)
-    query_dims = """
+    query_dims = f"""
     WITH
     rows_count AS (
-      SELECT COUNT(*)::bigint AS rows FROM raw.cve_details
+      SELECT COUNT(*)::bigint AS rows FROM {bronze_schema}.cve_details
     ),
     cols_count AS (
       SELECT COUNT(*)::int AS cols
       FROM information_schema.columns
-      WHERE table_schema = 'raw' AND table_name = 'cve_details'
+      WHERE table_schema = '{bronze_schema}' AND table_name = 'cve_details'
     )
     SELECT rows_count.rows, cols_count.cols
     FROM rows_count, cols_count;
     """
     dims = pd.read_sql(query_dims, engine).iloc[0]
-    df = pd.read_sql("SELECT * FROM raw.cve_details;", engine)
+    df = pd.read_sql(f"SELECT * FROM {bronze_schema}.cve_details;", engine)
     logger.info(f"✅ Loaded: {int(dims['rows']):,} rows × {int(dims['cols'])} columns")
     return df
 
@@ -158,7 +163,7 @@ def clean_data(df):
     return df
 
 # ----------------------------------------------------------------------------
-# CVSS mappings and parsing
+# CVSS mappings and parsing (unchanged)
 # ----------------------------------------------------------------------------
 CVSS_MAPS = {
     'v2': {
@@ -427,7 +432,7 @@ def main():
     """Main execution function"""
     try:
         logger.info("🔌 Connecting to database...")
-        engine = create_db_engine()
+        engine = create_db_engine()  # from database.connection
 
         # Load raw data from bronze layer
         df_raw = load_raw_data(engine)
@@ -440,7 +445,7 @@ def main():
         logger.info("💾 LOADING TO DATABASE")
         logger.info("="*70)
 
-        ok = load_silver_layer(silver_tables, engine, if_exists='replace')  # TRUNCATE+APPEND path
+        ok = load_silver_layer(silver_tables, engine, if_exists='replace')
         if ok:
             refresh_materialized_views(engine)
             logger.info("\n" + "="*70)

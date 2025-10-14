@@ -20,11 +20,12 @@ import logging
 import json
 
 
-from tip.load.load_bronze_layer import (
-    load_bronze_layer,
-    create_db_engine
-)
 
+
+from batch.load.load_bronze_layer import (
+    load_bronze_layer,
+    create_db_engine,
+)
 
 
 
