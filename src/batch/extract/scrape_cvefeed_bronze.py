@@ -302,7 +302,7 @@ class CVEScraper:
     # ------------------------------------------------------------------------
     # Batch Orchestration
     # ------------------------------------------------------------------------
-    def scrape_and_load_batch(self, cve_list, batch_size=10, delay=2, engine=None):
+    def scrape_and_load_batch(self, cve_list, batch_size=100, delay=2, engine=None):
         """
         Scrape CVEs in batches and load directly to PostgreSQL
 
@@ -449,7 +449,7 @@ def main():
     # Scrape and load to database
     stats = scraper.scrape_and_load_batch(
         cve_urls,
-        batch_size=10,  # Load to DB every 100 CVEs
+        batch_size=100,  # Load to DB every 100 CVEs
         delay=2          # 2 seconds between requests
     )
 
