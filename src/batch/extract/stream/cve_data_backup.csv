@@ -1,146 +1,16 @@
 cve_id,title,description,published_date,last_modified,remotely_exploit,source_identifier,category,affected_products,cvss_scores,url
-CVE-2025-9559,Pega Platform versions 8.7.5 to Infinity 24.2.2 are affected by a Insecure Direct Object Reference issue in a user interface component that can only be used to read data,"The following products are affected byCVE-2025-9559vulnerability.
+CVE-2025-34253,D-Link Nuclias Connect <= v1.3.1.4 Stored Cross-Site Scripting (XSS),"D-Link Nuclias Connect firmware versions <= 1.3.1.4 contain a stored cross-site scripting (XSS) vulnerability due to improper sanitization of the 'Network' field when editing the configuration, creating a profile, and adding a network. An authenticated attacker can inject arbitrary JavaScript to be executed in the context of other users viewing the profile entry. NOTE: D-Link states that a fix is under development.","Oct. 16, 2025, 6:53 p.m.","Oct. 16, 2025, 6:53 p.m.",Yes !,Source : VulnCheck,Cross-Site Scripting,[],"[{""score"": ""5.1"", ""version"": ""CVSS 4.0"", ""severity"": ""MEDIUM"", ""vector"": ""CVSS:4.0/AV:N/AC:L/AT:N/PR:L/UI:P/VC:N/VI:N/VA:N/SC:L/SI:L/SA:N"", ""source_identifier"": ""83251b91-4cc7-4094-a5c7-464a1b83ea10""}]",https://cvefeed.io/vuln/detail/CVE-2025-34253
+CVE-2025-34255,D-Link Nuclias Connect <= v1.3.1.4 Forgot Password Account Enumeration,"D-Link Nuclias Connect firmware versions <= 1.3.1.4 contain an observable response discrepancy vulnerability. The application's 'Forgot Password' endpoint returns distinct JSON responses depending on whether the supplied email address is associated with an existing account. Because the responses differ in the `data.exist` boolean value, an unauthenticated remote attacker can enumerate valid email addresses/accounts on the server. NOTE: D-Link states that a fix is under development.","Oct. 16, 2025, 6:52 p.m.","Oct. 16, 2025, 6:52 p.m.",Yes !,Source : VulnCheck,Information Disclosure,[],"[{""score"": ""6.9"", ""version"": ""CVSS 4.0"", ""severity"": ""MEDIUM"", ""vector"": ""CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:L/VI:N/VA:N/SC:N/SI:N/SA:N"", ""source_identifier"": ""83251b91-4cc7-4094-a5c7-464a1b83ea10""}]",https://cvefeed.io/vuln/detail/CVE-2025-34255
+CVE-2025-34254,D-Link Nuclias Connect <= v1.3.1.4 Login Account Enumeration,"D-Link Nuclias Connect firmware versions <= 1.3.1.4 contain an observable response discrepancy vulnerability. The application's 'Login' endpoint returns distinct JSON responses depending on whether the supplied username is associated with an existing account. Because the responses differ in the `error.message`string value, an unauthenticated remote attacker can enumerate valid usernames/accounts on the server. NOTE: D-Link states that a fix is under development.","Oct. 16, 2025, 6:52 p.m.","Oct. 16, 2025, 6:53 p.m.",Yes !,Source : VulnCheck,Authentication,[],"[{""score"": ""6.9"", ""version"": ""CVSS 4.0"", ""severity"": ""MEDIUM"", ""vector"": ""CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:L/VI:N/VA:N/SC:N/SI:N/SA:N"", ""source_identifier"": ""83251b91-4cc7-4094-a5c7-464a1b83ea10""}]",https://cvefeed.io/vuln/detail/CVE-2025-34254
+CVE-2025-62586,OPEXUS FOIAXpress unauthenticated administrator password reset,"The following products are affected byCVE-2025-62586vulnerability.
                                             Even ifcvefeed.iois aware of the exact versions of the
                                             products
                                             that
                                             are
-                                            affected, the information is not represented in the table below.","Oct. 16, 2025, 4:15 p.m.","Oct. 16, 2025, 4:15 p.m.",Yes !,security@pega.com,Authorization,[],"[{""score"": ""6.5"", ""version"": ""CVSS 3.1"", ""severity"": ""MEDIUM"", ""vector"": ""CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:N/A:N"", ""source_identifier"": ""c91e5604-2bd1-401f-a0ec-b25342b57ef9""}, {""score"": ""6.5"", ""version"": ""CVSS 3.1"", ""severity"": ""MEDIUM"", ""vector"": ""CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:N/A:N"", ""exploitability_score"": ""2.8"", ""impact_score"": ""3.6"", ""source_identifier"": ""security@pega.com""}]",https://cvefeed.io/vuln/detail/CVE-2025-9559
-CVE-2025-62496,Integer overflow in js_bigint_from_string in QuickJS,"A vulnerability exists in the QuickJS engine's BigInt string parsing logic (js_bigint_from_string) when attempting to create a BigInt from a string with an excessively large number of digits.
-
-The function calculates the necessary number of bits (n_bits) required to store the BigInt using the formula:
-
-$$\text{n\_bits} = (\text{n\_digits} \times 27 + 7) / 8 \quad (\text{for radix 10})$$
-
-  *  For large input strings (e.g., $79,536,432$ digits or more for base 10), the intermediate calculation $(\text{n\_digits} \times 27 + 7)$ exceeds the maximum value of a standard signed 32-bit integer, resulting in an Integer Overflow.
-
-
-  *  The resulting n_bits value becomes unexpectedly small or even negative due to this wrap-around.
-
-
-  *  This flawed n_bits is then used to compute n_limbs, the number of memory ""limbs"" needed for the BigInt object. Since n_bits is too small, the calculated n_limbs is also significantly underestimated.
-
-
-  *  The function proceeds to allocate a JSBigInt object using this underestimated n_limbs.
-
-
-  *  When the function later attempts to write the actual BigInt data into the allocated object, the small buffer size is quickly exceeded, leading to a Heap Out-of-Bounds Write as data is written past the end of the allocated r->tab array.","Oct. 16, 2025, 4:15 p.m.","Oct. 16, 2025, 4:15 p.m.",No,cve-coordination@google.com,Memory Corruption,[],"[{""score"": ""7.1"", ""version"": ""CVSS 4.0"", ""severity"": ""HIGH"", ""vector"": ""CVSS:4.0/AV:A/AC:H/AT:P/PR:L/UI:P/VC:H/VI:H/VA:L/SC:H/SI:H/SA:L"", ""source_identifier"": ""14ed7db2-1595-443d-9d34-6215bf890778""}, {""score"": ""7.1"", ""version"": ""CVSS 4.0"", ""severity"": ""HIGH"", ""vector"": ""CVSS:4.0/AV:A/AC:H/AT:P/PR:L/UI:P/VC:H/VI:H/VA:L/SC:H/SI:H/SA:L/E:X/CR:X/IR:X/AR:X/MAV:X/MAC:X/MAT:X/MPR:X/MUI:X/MVC:X/MVI:X/MVA:X/MSC:X/MSI:X/MSA:X/S:X/AU:X/R:X/V:X/RE:X/U:X"", ""source_identifier"": ""cve-coordination@google.com""}]",https://cvefeed.io/vuln/detail/CVE-2025-62496
-CVE-2025-62495,Type confusion in string addition in QuickJS,"An integer overflow vulnerability exists in the QuickJS regular expression engine (libregexp) due to an inconsistent representation of the bytecode buffer size.
-
-  *  The regular expression bytecode is stored in a DynBuf structure, which correctly uses a $\text{size}\_\text{t}$ (an unsigned type, typically 64-bit) for its size member.
-
-
-  *  However, several functions, such as re_emit_op_u32 and other internal parsing routines, incorrectly cast or store this DynBuf $\text{size}\_\text{t}$ value into a signed int (typically 32-bit).
-
-
-  *  When a large or complex regular expression (such as those generated by a recursive pattern in a Proof-of-Concept) causes the bytecode size to exceed $2^{31}$ bytes (the maximum positive value for a signed 32-bit integer), the size value wraps around, resulting in a negative integer when stored in the int variable (Integer Overflow).
-
-
-  *  This negative value is subsequently used in offset calculations. For example, within functions like re_parse_disjunction, the negative size is used to compute an offset (pos) for patching a jump instruction.
-
-
-  *  This negative offset is then incorrectly added to the buffer pointer (s->byte\_code.buf + pos), leading to an out-of-bounds write on the first line of the snippet below:
-
-put_u32(s->byte_code.buf + pos, len);","Oct. 16, 2025, 4:15 p.m.","Oct. 16, 2025, 4:15 p.m.",No,cve-coordination@google.com,Memory Corruption,[],"[{""score"": ""7.1"", ""version"": ""CVSS 4.0"", ""severity"": ""HIGH"", ""vector"": ""CVSS:4.0/AV:A/AC:H/AT:P/PR:L/UI:P/VC:H/VI:H/VA:L/SC:H/SI:H/SA:L"", ""source_identifier"": ""14ed7db2-1595-443d-9d34-6215bf890778""}, {""score"": ""7.1"", ""version"": ""CVSS 4.0"", ""severity"": ""HIGH"", ""vector"": ""CVSS:4.0/AV:A/AC:H/AT:P/PR:L/UI:P/VC:H/VI:H/VA:L/SC:H/SI:H/SA:L/E:X/CR:X/IR:X/AR:X/MAV:X/MAC:X/MAT:X/MPR:X/MUI:X/MVC:X/MVI:X/MVA:X/MSC:X/MSI:X/MSA:X/S:X/AU:X/R:X/V:X/RE:X/U:X"", ""source_identifier"": ""cve-coordination@google.com""}]",https://cvefeed.io/vuln/detail/CVE-2025-62495
-CVE-2025-62494,Type confusion in string addition in QuickJS,"A type confusion vulnerability exists in the handling of the string addition (+) operation within the QuickJS engine.
-
-  *  The code first checks if the left-hand operand is a string.
-
-
-  *  It then attempts to convert the right-hand operand to a primitive value using JS_ToPrimitiveFree. This conversion can trigger a callback (e.g., toString or valueOf).
-
-
-  *  During this callback, an attacker can modify the type of the left-hand operand in memory, changing it from a string to a different type (e.g., an object or an array).
-
-
-  *  The code then proceeds to call JS_ConcatStringInPlace, which still treats the modified left-hand value as a string.
-
-
-This mismatch between the assumed type (string) and the actual type allows an attacker to control the data structure being processed by the concatenation logic, resulting in a type confusion condition. This can lead to out-of-bounds memory access, potentially resulting in memory corruption and arbitrary code execution in the context of the QuickJS runtime.","Oct. 16, 2025, 4:15 p.m.","Oct. 16, 2025, 4:15 p.m.",No,cve-coordination@google.com,Memory Corruption,[],"[{""score"": ""7.1"", ""version"": ""CVSS 4.0"", ""severity"": ""HIGH"", ""vector"": ""CVSS:4.0/AV:A/AC:H/AT:P/PR:L/UI:P/VC:H/VI:H/VA:L/SC:H/SI:H/SA:L"", ""source_identifier"": ""14ed7db2-1595-443d-9d34-6215bf890778""}, {""score"": ""7.1"", ""version"": ""CVSS 4.0"", ""severity"": ""HIGH"", ""vector"": ""CVSS:4.0/AV:A/AC:H/AT:P/PR:L/UI:P/VC:H/VI:H/VA:L/SC:H/SI:H/SA:L/E:X/CR:X/IR:X/AR:X/MAV:X/MAC:X/MAT:X/MPR:X/MUI:X/MVC:X/MVI:X/MVA:X/MSC:X/MSI:X/MSA:X/S:X/AU:X/R:X/V:X/RE:X/U:X"", ""source_identifier"": ""cve-coordination@google.com""}]",https://cvefeed.io/vuln/detail/CVE-2025-62494
-CVE-2025-62493,Heap out-of-bounds read in js_bigint_to_string1 in QuickJS,"A vulnerability exists in the QuickJS engine's BigInt string conversion logic (js_bigint_to_string1) due to an incorrect calculation of the required number of digits, which in turn leads to reading memory past the allocated BigInt structure.
-
-  *  The function determines the number of characters (n_digits) needed for the string representation by calculating:
-
-$$ \\ \text{n\_digits} = (\text{n\_bits} + \text{log2\_radix} - 1) / \text{log2\_radix}$$
-
-$$$$This formula is off-by-one in certain edge cases when calculating the necessary memory limbs. For instance, a 127-bit BigInt using radix 32 (where $\text{log2\_radix}=5$) is calculated to need $\text{n\_digits}=26$.
-
-
-  *  The maximum number of bits actually stored is $\text{n\_bits}=127$, which requires only two 64-bit limbs ($\text{JS\_LIMB\_BITS}=64$).
-
-
-  *  The conversion loop iterates $\text{n\_digits}=26$ times, attempting to read 5 bits in each iteration, totaling $26 \times 5 = 130$ bits.
-
-
-  *  In the final iterations of the loop, the code attempts to read data that spans two limbs:
-
-C
-
-
-
-c = (r->tab[pos] >> shift) | (r->tab[pos + 1] << (JS_LIMB_BITS - shift));
-
-
-
-
-
-
-
-
-
-  *  Since the BigInt was only allocated two limbs, the read operation for r->tab[pos + 1] becomes an Out-of-Bounds Read when pos points to the last valid limb (e.g., $pos=1$).
-
-
-This vulnerability allows an attacker to cause the engine to read and process data from the memory immediately following the BigInt buffer. This can lead to Information Disclosure of sensitive data stored on the heap adjacent to the BigInt object.","Oct. 16, 2025, 4:15 p.m.","Oct. 16, 2025, 4:15 p.m.",No,cve-coordination@google.com,Memory Corruption,[],"[{""score"": ""5.9"", ""version"": ""CVSS 4.0"", ""severity"": ""MEDIUM"", ""vector"": ""CVSS:4.0/AV:A/AC:H/AT:P/PR:L/UI:P/VC:H/VI:L/VA:L/SC:H/SI:L/SA:L"", ""source_identifier"": ""14ed7db2-1595-443d-9d34-6215bf890778""}, {""score"": ""5.9"", ""version"": ""CVSS 4.0"", ""severity"": ""MEDIUM"", ""vector"": ""CVSS:4.0/AV:A/AC:H/AT:P/PR:L/UI:P/VC:H/VI:L/VA:L/SC:H/SI:L/SA:L/E:X/CR:X/IR:X/AR:X/MAV:X/MAC:X/MAT:X/MPR:X/MUI:X/MVC:X/MVI:X/MVA:X/MSC:X/MSI:X/MSA:X/S:X/AU:X/R:X/V:X/RE:X/U:X"", ""source_identifier"": ""cve-coordination@google.com""}]",https://cvefeed.io/vuln/detail/CVE-2025-62493
-CVE-2025-62492,Heap out-of-bounds read in js_typed_array_indexOf in QuickJS,"A vulnerability stemming from floating-point arithmetic precision errors exists in the QuickJS engine's implementation of TypedArray.prototype.indexOf() when a negative fromIndex argument is supplied.
-
-  *  The fromIndex argument (read as a double variable, $d$) is used to calculate the starting position for the search.
-
-
-  *  If d is negative, the index is calculated relative to the end of the array by adding the array's length (len) to d:
-
-
-
-$$d_{new} = d + \text{len}$$
-
-
-  *  Due to the inherent limitations of floating-point arithmetic, if the negative value $d$ is extremely small (e.g., $-1 \times 10^{-20}$), the addition $d + \text{len}$ can result in a loss of precision, yielding an outcome that is exactly equal to $\text{len}$.
-
-
-  *  The result is then converted to an integer index $k$: $k = \text{len}$.
-
-
-  *  The search function proceeds to read array elements starting from index $k$. Since valid indices are $0$ to $\text{len}-1$, starting the read at index $\text{len}$ is one element past the end of the array.
-
-
-This allows an attacker to cause an Out-of-Bounds Read of one element immediately following the buffer. While the scope of this read is small (one element), it can potentially lead to Information Disclosure of adjacent memory contents, depending on the execution environment.","Oct. 16, 2025, 4:15 p.m.","Oct. 16, 2025, 4:15 p.m.",No,cve-coordination@google.com,Memory Corruption,[],"[{""score"": ""5.9"", ""version"": ""CVSS 4.0"", ""severity"": ""MEDIUM"", ""vector"": ""CVSS:4.0/AV:A/AC:H/AT:P/PR:L/UI:P/VC:H/VI:L/VA:L/SC:H/SI:L/SA:L"", ""source_identifier"": ""14ed7db2-1595-443d-9d34-6215bf890778""}, {""score"": ""5.9"", ""version"": ""CVSS 4.0"", ""severity"": ""MEDIUM"", ""vector"": ""CVSS:4.0/AV:A/AC:H/AT:P/PR:L/UI:P/VC:H/VI:L/VA:L/SC:H/SI:L/SA:L/E:X/CR:X/IR:X/AR:X/MAV:X/MAC:X/MAT:X/MPR:X/MUI:X/MVC:X/MVI:X/MVA:X/MSC:X/MSI:X/MSA:X/S:X/AU:X/R:X/V:X/RE:X/U:X"", ""source_identifier"": ""cve-coordination@google.com""}]",https://cvefeed.io/vuln/detail/CVE-2025-62492
-CVE-2025-62491,Use-after-free in js_std_promise_rejection_check in QuickJS,"A Use-After-Free (UAF) vulnerability exists in the QuickJS engine's standard library when iterating over the global list of unhandled rejected promises (ts->rejected_promise_list).
-
-  *  The function js_std_promise_rejection_check attempts to iterate over the rejected_promise_list to report unhandled rejections using a standard list loop.
-
-
-  *  The reason for a promise rejection is processed inside the loop, including calling js_std_dump_error1(ctx, rp->reason).
-
-
-  *  If the promise rejection reason is an Error object that defines a custom property getter (e.g., via Object.defineProperty), this getter is executed during the error dumping process.
-
-
-  *  The malicious custom getter can execute JavaScript code that calls catch() on the same rejected promise being processed.
-
-
-  *  Calling catch() internally triggers js_std_promise_rejection_tracker, which then removes and frees the current promise entry (JSRejectedPromiseEntry) from the rejected_promise_list.
-
-
-  *  Since the list iteration continues using the now-freed memory pointer (el), the subsequent loop access results in a Use-After-Free condition.","Oct. 16, 2025, 4:15 p.m.","Oct. 16, 2025, 4:15 p.m.",No,cve-coordination@google.com,Memory Corruption,[],"[{""score"": ""8.8"", ""version"": ""CVSS 4.0"", ""severity"": ""HIGH"", ""vector"": ""CVSS:4.0/AV:A/AC:H/AT:P/PR:N/UI:P/VC:H/VI:H/VA:L/SC:H/SI:H/SA:L"", ""source_identifier"": ""14ed7db2-1595-443d-9d34-6215bf890778""}, {""score"": ""8.8"", ""version"": ""CVSS 4.0"", ""severity"": ""HIGH"", ""vector"": ""CVSS:4.0/AV:A/AC:H/AT:P/PR:N/UI:P/VC:H/VI:H/VA:L/SC:H/SI:H/SA:L/E:X/CR:X/IR:X/AR:X/MAV:X/MAC:X/MAT:X/MPR:X/MUI:X/MVC:X/MVI:X/MVA:X/MSC:X/MSI:X/MSA:X/S:X/AU:X/R:X/V:X/RE:X/U:X"", ""source_identifier"": ""cve-coordination@google.com""}]",https://cvefeed.io/vuln/detail/CVE-2025-62491
-CVE-2025-62490,Use-after-free in js_print_object in QuickJS,"The following products are affected byCVE-2025-62490vulnerability.
-                                            Even ifcvefeed.iois aware of the exact versions of the
-                                            products
-                                            that
-                                            are
-                                            affected, the information is not represented in the table below.","Oct. 16, 2025, 4:15 p.m.","Oct. 16, 2025, 4:15 p.m.",No,cve-coordination@google.com,Memory Corruption,[],"[{""score"": ""8.8"", ""version"": ""CVSS 4.0"", ""severity"": ""HIGH"", ""vector"": ""CVSS:4.0/AV:A/AC:H/AT:P/PR:N/UI:P/VC:H/VI:H/VA:L/SC:H/SI:H/SA:L"", ""source_identifier"": ""14ed7db2-1595-443d-9d34-6215bf890778""}, {""score"": ""8.8"", ""version"": ""CVSS 4.0"", ""severity"": ""HIGH"", ""vector"": ""CVSS:4.0/AV:A/AC:H/AT:P/PR:N/UI:P/VC:H/VI:H/VA:L/SC:H/SI:H/SA:L/E:X/CR:X/IR:X/AR:X/MAV:X/MAC:X/MAT:X/MPR:X/MUI:X/MVC:X/MVI:X/MVA:X/MSC:X/MSI:X/MSA:X/S:X/AU:X/R:X/V:X/RE:X/U:X"", ""source_identifier"": ""cve-coordination@google.com""}]",https://cvefeed.io/vuln/detail/CVE-2025-62490
-CVE-2025-55035,Mattermost Desktop DoS when user has basic authentication server configured,"The following products are affected byCVE-2025-55035vulnerability.
-                                            Even ifcvefeed.iois aware of the exact versions of the
-                                            products
-                                            that
-                                            are
-                                            affected, the information is not represented in the table below.","Oct. 16, 2025, 4:15 p.m.","Oct. 16, 2025, 4:15 p.m.",Yes !,responsibledisclosure@mattermost.com,Authentication,[],"[{""score"": ""6.1"", ""version"": ""CVSS 3.1"", ""severity"": ""MEDIUM"", ""vector"": ""CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:C/C:N/I:N/A:H"", ""source_identifier"": ""9302f53e-dde5-4bf3-b2f2-a83f91ac0eee""}, {""score"": ""6.1"", ""version"": ""CVSS 3.1"", ""severity"": ""MEDIUM"", ""vector"": ""CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:C/C:N/I:N/A:H"", ""exploitability_score"": ""1.6"", ""impact_score"": ""4.0"", ""source_identifier"": ""responsibledisclosure@mattermost.com""}]",https://cvefeed.io/vuln/detail/CVE-2025-55035
-CVE-2025-11851,Apeman ID71 set_alias.cgi cross site scripting,A vulnerability has been found in Apeman ID71 EN75.8.53.20. The affected element is an unknown function of the file /set_alias.cgi. Such manipulation of the argument alias leads to cross site scripting. The attack can be executed remotely. The exploit has been disclosed to the public and may be used. The vendor was contacted early about this disclosure but did not respond in any way.,"Oct. 16, 2025, 4:15 p.m.","Oct. 16, 2025, 4:15 p.m.",Yes !,cna@vuldb.com,Cross-Site Scripting,[],"[{""score"": ""4.0"", ""version"": ""CVSS 2.0"", ""severity"": ""MEDIUM"", ""vector"": ""AV:N/AC:L/Au:S/C:N/I:P/A:N"", ""exploitability_score"": ""8.0"", ""impact_score"": ""2.9"", ""source_identifier"": ""cna@vuldb.com""}, {""score"": ""3.5"", ""version"": ""CVSS 3.1"", ""severity"": ""LOW"", ""vector"": ""CVSS:3.1/AV:N/AC:L/PR:L/UI:R/S:U/C:N/I:L/A:N"", ""exploitability_score"": ""2.1"", ""impact_score"": ""1.4"", ""source_identifier"": ""cna@vuldb.com""}, {""score"": ""5.1"", ""version"": ""CVSS 4.0"", ""severity"": ""MEDIUM"", ""vector"": ""CVSS:4.0/AV:N/AC:L/AT:N/PR:L/UI:P/VC:N/VI:L/VA:N/SC:N/SI:N/SA:N/E:P/CR:X/IR:X/AR:X/MAV:X/MAC:X/MAT:X/MPR:X/MUI:X/MVC:X/MVI:X/MVA:X/MSC:X/MSI:X/MSA:X/S:X/AU:X/R:X/V:X/RE:X/U:X"", ""source_identifier"": ""cna@vuldb.com""}]",https://cvefeed.io/vuln/detail/CVE-2025-11851
+                                            affected, the information is not represented in the table below.","Oct. 16, 2025, 6:15 p.m.","Oct. 16, 2025, 6:15 p.m.",Yes !,Source : 9119a7d8-5eab-497f-8521-727c672e3725,Authentication,[],"[{""score"": ""9.8"", ""version"": ""CVSS 3.1"", ""severity"": ""CRITICAL"", ""vector"": ""CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"", ""exploitability_score"": ""3.9"", ""impact_score"": ""5.9"", ""source_identifier"": ""9119a7d8-5eab-497f-8521-727c672e3725""}, {""score"": ""8.9"", ""version"": ""CVSS 4.0"", ""severity"": ""HIGH"", ""vector"": ""CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N/E:P/CR:X/IR:X/AR:X/MAV:X/MAC:X/MAT:X/MPR:X/MUI:X/MVC:X/MVI:X/MVA:X/MSC:X/MSI:X/MSA:X/S:N/AU:Y/R:U/V:D/RE:M/U:Red"", ""source_identifier"": ""9119a7d8-5eab-497f-8521-727c672e3725""}]",https://cvefeed.io/vuln/detail/CVE-2025-62586
+CVE-2025-62413,MQTTX vulnerable to cross-site scripting via improper message payload rendering,"MQTTX is an MQTT 5.0 desktop client and MQTT testing tool. A Cross-Site Scripting (XSS) vulnerability was introduced in MQTTX v1.12.0 due to improper handling of MQTT message payload rendering. Malicious payloads containing HTML or JavaScript could be rendered directly in the MQTTX message viewer. If exploited, this could allow attackers to execute arbitrary scripts in the context of the application UI — for example, attempting to access MQTT connection credentials or trigger unintended actions through script injection. This vulnerability is especially relevant when MQTTX is used with brokers in untrusted or multi-tenant environments, where message content cannot be fully controlled. This vulnerability is fixed in 1.12.1.","Oct. 16, 2025, 6:15 p.m.","Oct. 16, 2025, 6:15 p.m.",Yes !,security-advisories@github.com,Cross-Site Scripting,[],"[{""score"": ""6.1"", ""version"": ""CVSS 3.1"", ""severity"": ""MEDIUM"", ""vector"": ""CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N"", ""exploitability_score"": ""2.8"", ""impact_score"": ""2.7"", ""source_identifier"": ""security-advisories@github.com""}]",https://cvefeed.io/vuln/detail/CVE-2025-62413
+CVE-2025-62412,LibreNMS alert-rules Cross-Site Scripting Vulnerability,"LibreNMS  is a community-based GPL-licensed network monitoring system. The alert rule name in the Alerts > Alert Rules page is not properly sanitized, and can be used to inject HTML code. This vulnerability is fixed in 25.10.0.","Oct. 16, 2025, 6:15 p.m.","Oct. 16, 2025, 6:15 p.m.",Yes !,security-advisories@github.com,Cross-Site Scripting,[],"[{""score"": ""3.8"", ""version"": ""CVSS 3.1"", ""severity"": ""LOW"", ""vector"": ""CVSS:3.1/AV:N/AC:L/PR:H/UI:N/S:U/C:L/I:L/A:N"", ""exploitability_score"": ""1.2"", ""impact_score"": ""2.5"", ""source_identifier"": ""security-advisories@github.com""}]",https://cvefeed.io/vuln/detail/CVE-2025-62412
+CVE-2025-62411,Stored XSS in Alert Transport name field in LibreNMS,"LibreNMS  is a community-based GPL-licensed network monitoring system. LibreNMS <= 25.8.0 contains a Stored Cross-Site Scripting (XSS) vulnerability in the Alert Transports management functionality. When an administrator creates a new Alert Transport, the value of the Transport name field is stored and later rendered in the Transports column of the Alert Rules page without proper input validation or output encoding. This leads to arbitrary JavaScript execution in the admin’s browser. This vulnerability is fixed in 25.10.0.","Oct. 16, 2025, 6:15 p.m.","Oct. 16, 2025, 6:15 p.m.",Yes !,security-advisories@github.com,Cross-Site Scripting,[],"[{""score"": ""5.5"", ""version"": ""CVSS 3.1"", ""severity"": ""MEDIUM"", ""vector"": ""CVSS:3.1/AV:N/AC:L/PR:H/UI:N/S:C/C:L/I:L/A:N"", ""exploitability_score"": ""2.3"", ""impact_score"": ""2.7"", ""source_identifier"": ""security-advisories@github.com""}]",https://cvefeed.io/vuln/detail/CVE-2025-62411
+CVE-2025-62409,Envoy allows large requests and responses to cause TCP connection pool crash,"Envoy is a cloud-native, open source edge and service proxy. Prior to 1.36.1, 1.35.5, 1.34.9, and 1.33.10, large requests and responses can potentially trigger TCP connection pool crashes due to flow control management in Envoy. It will happen when the connection is closing but upstream data is still coming, resulting in a buffer watermark callback nullptr reference. The vulnerability impacts TCP proxy and HTTP 1 & 2 mixed use cases based on ALPN. This vulnerability is fixed in 1.36.1, 1.35.5, 1.34.9, and 1.33.10.","Oct. 16, 2025, 6:15 p.m.","Oct. 16, 2025, 6:15 p.m.",Yes !,security-advisories@github.com,Denial of Service,[],"[{""score"": ""6.6"", ""version"": ""CVSS 4.0"", ""severity"": ""MEDIUM"", ""vector"": ""CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:N/VI:N/VA:H/SC:N/SI:N/SA:N/E:U/CR:X/IR:X/AR:X/MAV:X/MAC:X/MAT:X/MPR:X/MUI:X/MVC:X/MVI:X/MVA:X/MSC:X/MSI:X/MSA:X/S:X/AU:X/R:X/V:X/RE:X/U:X"", ""source_identifier"": ""security-advisories@github.com""}]",https://cvefeed.io/vuln/detail/CVE-2025-62409
+CVE-2025-62407,Frappe has an Open Redirect on Login Page,"Frappe is a full-stack web application framework. Prior to 14.98.0 and 15.83.0, an open redirect was possible  through the redirect argument on the login page, if a specific type of URL was passed in. This vulnerability is fixed in 14.98.0 and 15.83.0.","Oct. 16, 2025, 6:15 p.m.","Oct. 16, 2025, 6:15 p.m.",Yes !,security-advisories@github.com,Misconfiguration,[],"[{""score"": ""6.1"", ""version"": ""CVSS 3.1"", ""severity"": ""MEDIUM"", ""vector"": ""CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N"", ""exploitability_score"": ""2.8"", ""impact_score"": ""2.7"", ""source_identifier"": ""security-advisories@github.com""}]",https://cvefeed.io/vuln/detail/CVE-2025-62407
+CVE-2025-61924,PrestaShop Checkout Target PayPal merchant account hijacking from backoffice,"PrestaShop Checkout is the PrestaShop official payment module in partnership with PayPal. In versions prior to 4.4.1 and 5.0.5, the Target PayPal merchant account hijacking from backoffice due to wrong usage of the PHP array_search(). The vulnerability is fixed in versions 4.4.1 and 5.0.5. No known workarounds exist.","Oct. 16, 2025, 6:15 p.m.","Oct. 16, 2025, 6:15 p.m.",Yes !,security-advisories@github.com,Authentication,[],"[{""score"": ""3.8"", ""version"": ""CVSS 3.1"", ""severity"": ""LOW"", ""vector"": ""CVSS:3.1/AV:N/AC:L/PR:H/UI:N/S:U/C:L/I:L/A:N"", ""exploitability_score"": ""1.2"", ""impact_score"": ""2.5"", ""source_identifier"": ""security-advisories@github.com""}]",https://cvefeed.io/vuln/detail/CVE-2025-61924
