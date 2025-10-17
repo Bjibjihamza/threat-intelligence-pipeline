@@ -8,3 +8,6 @@ Data/Raw/*.json.zip
 
 # (Optional) ignore Jupyter checkpoint folders
 *.ipynb_checkpoints/
+
+
+.env
