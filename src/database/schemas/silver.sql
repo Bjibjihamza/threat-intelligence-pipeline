@@ -1,198 +1,145 @@
--- ============================================================================
--- SILVER LAYER SCHEMA V2.1 - CVE DATA WAREHOUSE (WITH SOURCE TRACKING)
--- - dim_cve includes source_identifier (top-level CVE origin)
--- - fact_cvss_scores uses dim_cvss_source for CVSS row sources
--- ============================================================================
+-- ================================================================
+-- SILVER LAYER SCHEMA (EDA + Cleaned Data)
+-- Table unique: cve_cleaned (données nettoyées et standardisées)
+-- ================================================================
 
 CREATE SCHEMA IF NOT EXISTS silver;
 SET search_path TO silver, public;
 
--- DIM_CVE
-DROP TABLE IF EXISTS silver.dim_cve CASCADE;
+-- ================================================================
+-- NETTOYAGE
+-- ================================================================
+DROP TABLE IF EXISTS silver.cve_cleaned CASCADE;
 
-CREATE TABLE silver.dim_cve (
+-- ================================================================
+-- TABLE: CVE_CLEANED
+-- Description: Données CVE nettoyées issues de la couche Bronze
+--              - Pas de modélisation en étoile
+--              - Données standardisées et validées
+--              - Prête pour transformation en Gold
+-- ================================================================
+CREATE TABLE silver.cve_cleaned (
+    -- Identifiants
     cve_id VARCHAR(20) PRIMARY KEY,
-    title TEXT NOT NULL,
+    
+    -- Informations principales
+    title TEXT,
     description TEXT,
     category VARCHAR(50) DEFAULT 'undefined',
-    published_date TIMESTAMP NOT NULL,
-    last_modified TIMESTAMP NOT NULL,
-    loaded_at TIMESTAMP NOT NULL,
-    cve_year INTEGER GENERATED ALWAYS AS (EXTRACT(YEAR FROM published_date)) STORED,
+    
+    -- Dates
+    published_date TIMESTAMP,
+    last_modified TIMESTAMP,
+    loaded_at TIMESTAMP,
+    
+    -- Métadonnées
     remotely_exploit BOOLEAN,
-    source_identifier TEXT,               -- ← NEW: keep origin (NVD/MITRE/email)
+    source_identifier TEXT,
+    
+    -- Données structurées (TEXT pour compatibilité avec pandas)
+    -- Seront converties en JSONB après insertion si nécessaire
+    affected_products TEXT,
+    cvss_scores TEXT,
+    
+    -- Référence source
+    url TEXT,
+    
+    -- Audit
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_dim_cve_published_date ON silver.dim_cve(published_date);
-CREATE INDEX idx_dim_cve_cve_year ON silver.dim_cve(cve_year);
-CREATE INDEX idx_dim_cve_category ON silver.dim_cve(category);
-CREATE INDEX idx_dim_cve_remotely_exploit ON silver.dim_cve(remotely_exploit);
-CREATE INDEX idx_dim_cve_source_identifier ON silver.dim_cve(source_identifier);
-
-COMMENT ON COLUMN silver.dim_cve.source_identifier IS 'Top-level CVE source identifier (e.g., NVD, MITRE, email).';
-
--- DIM_CVSS_SOURCE
-DROP TABLE IF EXISTS silver.dim_cvss_source CASCADE;
-
-CREATE TABLE silver.dim_cvss_source (
-    source_id SERIAL PRIMARY KEY,
-    source_name VARCHAR(100) UNIQUE NOT NULL,  -- e.g., 'nvd@nist.gov'
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX idx_dim_cvss_source_name ON silver.dim_cvss_source(source_name);
-
--- FACT_CVSS_SCORES
-DROP TABLE IF EXISTS silver.fact_cvss_scores CASCADE;
-
-CREATE TABLE silver.fact_cvss_scores (
-    cvss_score_id SERIAL PRIMARY KEY,
-    cve_id VARCHAR(20) NOT NULL,
-    source_id INTEGER,  -- FK to dim_cvss_source
-    cvss_version VARCHAR(10) NOT NULL,
-    cvss_score NUMERIC(3,1) CHECK (cvss_score >= 0 AND cvss_score <= 10),
-    cvss_severity VARCHAR(10),
-    cvss_vector TEXT,
-    cvss_exploitability_score NUMERIC(3,1),
-    cvss_impact_score NUMERIC(3,1),
-    -- v2/v3/v4 metrics
-    cvss_av VARCHAR(20), cvss_ac VARCHAR(20), cvss_c VARCHAR(20), cvss_i VARCHAR(20), cvss_a VARCHAR(20),
-    cvss_au VARCHAR(20), cvss_pr VARCHAR(20), cvss_ui VARCHAR(20), cvss_s VARCHAR(20),
-    cvss_at VARCHAR(20), cvss_vc VARCHAR(20), cvss_vi VARCHAR(20), cvss_va VARCHAR(20),
-    cvss_sc VARCHAR(20), cvss_si VARCHAR(20), cvss_sa VARCHAR(20),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_fact_cvss_cve    FOREIGN KEY (cve_id)   REFERENCES silver.dim_cve(cve_id) ON DELETE CASCADE,
-    CONSTRAINT fk_fact_cvss_source FOREIGN KEY (source_id) REFERENCES silver.dim_cvss_source(source_id) ON DELETE SET NULL
-);
-
-CREATE INDEX idx_fact_cvss_cve_id     ON silver.fact_cvss_scores(cve_id);
-CREATE INDEX idx_fact_cvss_source_id  ON silver.fact_cvss_scores(source_id);
-CREATE INDEX idx_fact_cvss_version    ON silver.fact_cvss_scores(cvss_version);
-CREATE INDEX idx_fact_cvss_score      ON silver.fact_cvss_scores(cvss_score);
-CREATE INDEX idx_fact_cvss_severity   ON silver.fact_cvss_scores(cvss_severity);
-CREATE INDEX idx_fact_cvss_cve_source ON silver.fact_cvss_scores(cve_id, source_id);
-
--- DIM_PRODUCTS (unchanged)
-DROP TABLE IF EXISTS silver.dim_products CASCADE;
-
-CREATE TABLE silver.dim_products (
-    product_id SERIAL PRIMARY KEY,
-    vendor VARCHAR(255) NOT NULL,
-    product_name VARCHAR(255) NOT NULL,
-    total_cves INTEGER DEFAULT 0,
-    first_cve_date TIMESTAMP,
-    last_cve_date TIMESTAMP,
-    product_lifespan_days INTEGER GENERATED ALWAYS AS (EXTRACT(DAY FROM (last_cve_date - first_cve_date))) STORED,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT uk_dim_products_vendor_product UNIQUE (vendor, product_name)
-);
-
-CREATE INDEX idx_dim_products_vendor ON silver.dim_products(vendor);
-CREATE INDEX idx_dim_products_product_name ON silver.dim_products(product_name);
-CREATE INDEX idx_dim_products_total_cves ON silver.dim_products(total_cves DESC);
-
--- BRIDGE_CVE_PRODUCTS (unchanged)
-DROP TABLE IF EXISTS silver.bridge_cve_products CASCADE;
-
-CREATE TABLE silver.bridge_cve_products (
-    bridge_id SERIAL PRIMARY KEY,
-    cve_id VARCHAR(20) NOT NULL,
-    product_id INTEGER NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_bridge_cve     FOREIGN KEY (cve_id)    REFERENCES silver.dim_cve(cve_id)     ON DELETE CASCADE,
-    CONSTRAINT fk_bridge_product FOREIGN KEY (product_id) REFERENCES silver.dim_products(product_id) ON DELETE CASCADE,
-    CONSTRAINT uk_bridge_cve_product UNIQUE (cve_id, product_id)
-);
-
-CREATE INDEX idx_bridge_cve_id     ON silver.bridge_cve_products(cve_id);
-CREATE INDEX idx_bridge_product_id ON silver.bridge_cve_products(product_id);
-
--- MATERIALIZED VIEWS (include dim_cve.source_identifier in outputs)
-DROP MATERIALIZED VIEW IF EXISTS silver.mv_cve_all_cvss CASCADE;
-
-CREATE MATERIALIZED VIEW silver.mv_cve_all_cvss AS
-SELECT 
-    c.cve_id,
-    c.title,
-    c.description,
-    c.published_date,
-    c.cve_year,
-    c.category,
-    c.remotely_exploit,
-    c.source_identifier,                 -- ← added
-    s.source_name,
-    f.cvss_version,
-    f.cvss_score,
-    f.cvss_severity,
-    f.cvss_vector,
-    f.cvss_av, f.cvss_ac, f.cvss_pr, f.cvss_ui, f.cvss_s,
-    f.cvss_c, f.cvss_i, f.cvss_a
-FROM silver.dim_cve c
-JOIN silver.fact_cvss_scores f ON c.cve_id = f.cve_id
-LEFT JOIN silver.dim_cvss_source s ON f.source_id = s.source_id
-ORDER BY c.cve_id, f.cvss_version, s.source_name;
-
-CREATE INDEX idx_mv_cve_all_cvss_cve_id   ON silver.mv_cve_all_cvss(cve_id);
-CREATE INDEX idx_mv_cve_all_cvss_version  ON silver.mv_cve_all_cvss(cvss_version);
-CREATE INDEX idx_mv_cve_all_cvss_source   ON silver.mv_cve_all_cvss(source_name);
-
-DROP MATERIALIZED VIEW IF EXISTS silver.mv_cvss_source_comparison CASCADE;
-
-CREATE MATERIALIZED VIEW silver.mv_cvss_source_comparison AS
-SELECT 
-    c.cve_id,
-    c.title,
-    c.source_identifier,                 -- ← added
-    f.cvss_version,
-    s.source_name,
-    f.cvss_score,
-    f.cvss_severity,
-    COUNT(*) OVER (PARTITION BY c.cve_id, f.cvss_version) AS source_count_for_version,
-    MAX(f.cvss_score) OVER (PARTITION BY c.cve_id, f.cvss_version) AS max_score_for_version,
-    MIN(f.cvss_score) OVER (PARTITION BY c.cve_id, f.cvss_version) AS min_score_for_version,
-    ABS(f.cvss_score - AVG(f.cvss_score) OVER (PARTITION BY c.cve_id, f.cvss_version)) AS score_deviation
-FROM silver.dim_cve c
-JOIN silver.fact_cvss_scores f ON c.cve_id = f.cve_id
-LEFT JOIN silver.dim_cvss_source s ON f.source_id = s.source_id
-ORDER BY c.cve_id, f.cvss_version, score_deviation DESC;
-
-DROP MATERIALIZED VIEW IF EXISTS silver.mv_top_products CASCADE;
-
-CREATE MATERIALIZED VIEW silver.mv_top_products AS
-SELECT 
-    p.product_id,
-    p.vendor,
-    p.product_name,
-    p.total_cves,
-    COUNT(DISTINCT b.cve_id) AS cve_count_verified,
-    AVG(f.cvss_score) AS avg_cvss_score,
-    MAX(f.cvss_score) AS max_cvss_score,
-    COUNT(CASE WHEN f.cvss_severity = 'CRITICAL' THEN 1 END) AS critical_count,
-    COUNT(CASE WHEN f.cvss_severity = 'HIGH' THEN 1 END) AS high_count,
-    COUNT(DISTINCT f.source_id) AS source_count,
-    p.first_cve_date,
-    p.last_cve_date
-FROM silver.dim_products p
-LEFT JOIN silver.bridge_cve_products b ON p.product_id = b.product_id
-LEFT JOIN silver.fact_cvss_scores f ON b.cve_id = f.cve_id
-GROUP BY p.product_id, p.vendor, p.product_name, p.total_cves, p.first_cve_date, p.last_cve_date
-HAVING COUNT(DISTINCT b.cve_id) > 0
-ORDER BY p.total_cves DESC;
-
--- FUNCTIONS
-CREATE OR REPLACE FUNCTION silver.refresh_all_mv()
-RETURNS void AS $$
+-- Fonction pour convertir TEXT en JSONB (optionnel)
+CREATE OR REPLACE FUNCTION silver.convert_json_columns()
+RETURNS void AS $
 BEGIN
-    REFRESH MATERIALIZED VIEW CONCURRENTLY silver.mv_cve_all_cvss;
-    REFRESH MATERIALIZED VIEW CONCURRENTLY silver.mv_cvss_source_comparison;
-    REFRESH MATERIALIZED VIEW CONCURRENTLY silver.mv_top_products;
-    RAISE NOTICE 'All materialized views refreshed successfully';
+    -- Convertir affected_products en JSONB
+    ALTER TABLE silver.cve_cleaned 
+        ALTER COLUMN affected_products TYPE JSONB USING affected_products::jsonb;
+    
+    -- Convertir cvss_scores en JSONB
+    ALTER TABLE silver.cve_cleaned 
+        ALTER COLUMN cvss_scores TYPE JSONB USING cvss_scores::jsonb;
+    
+    RAISE NOTICE 'JSON columns converted to JSONB';
 END;
-$$ LANGUAGE plpgsql;
+$ LANGUAGE plpgsql;
 
+-- ================================================================
+-- INDEXES POUR PERFORMANCE
+-- ================================================================
+
+-- Index sur les dates (pour filtrage temporel)
+CREATE INDEX idx_silver_cve_published ON silver.cve_cleaned(published_date);
+CREATE INDEX idx_silver_cve_modified ON silver.cve_cleaned(last_modified);
+
+-- Index sur category (pour groupement)
+CREATE INDEX idx_silver_cve_category ON silver.cve_cleaned(category);
+
+-- Index GIN sur JSONB pour recherche efficace
+CREATE INDEX idx_silver_cve_products_gin ON silver.cve_cleaned USING GIN(affected_products);
+CREATE INDEX idx_silver_cve_scores_gin ON silver.cve_cleaned USING GIN(cvss_scores);
+
+-- Index sur source_identifier (pour traçabilité)
+CREATE INDEX idx_silver_cve_source ON silver.cve_cleaned(source_identifier);
+
+-- ================================================================
+-- VUES POUR ANALYSE RAPIDE
+-- ================================================================
+
+-- Vue: Statistiques globales par année
+CREATE OR REPLACE VIEW silver.vw_cve_stats_by_year AS
+SELECT 
+    EXTRACT(YEAR FROM published_date) AS year,
+    COUNT(*) AS total_cves,
+    COUNT(CASE WHEN remotely_exploit = TRUE THEN 1 END) AS remotely_exploitable,
+    COUNT(CASE WHEN cvss_scores IS NOT NULL AND jsonb_array_length(cvss_scores) > 0 THEN 1 END) AS with_cvss,
+    COUNT(CASE WHEN affected_products IS NOT NULL AND jsonb_array_length(affected_products) > 0 THEN 1 END) AS with_products
+FROM silver.cve_cleaned
+GROUP BY EXTRACT(YEAR FROM published_date)
+ORDER BY year DESC;
+
+-- Vue: CVEs sans données CVSS (pour validation qualité)
+CREATE OR REPLACE VIEW silver.vw_cve_missing_cvss AS
+SELECT 
+    cve_id,
+    title,
+    published_date,
+    category,
+    source_identifier
+FROM silver.cve_cleaned
+WHERE cvss_scores IS NULL 
+   OR jsonb_array_length(cvss_scores) = 0;
+
+-- Vue: CVEs sans produits affectés (pour validation qualité)
+CREATE OR REPLACE VIEW silver.vw_cve_missing_products AS
+SELECT 
+    cve_id,
+    title,
+    published_date,
+    category,
+    source_identifier
+FROM silver.cve_cleaned
+WHERE affected_products IS NULL 
+   OR jsonb_array_length(affected_products) = 0;
+
+-- Vue: Statistiques par catégorie
+CREATE OR REPLACE VIEW silver.vw_cve_stats_by_category AS
+SELECT 
+    category,
+    COUNT(*) AS total_cves,
+    MIN(published_date) AS first_cve_date,
+    MAX(published_date) AS last_cve_date,
+    COUNT(CASE WHEN remotely_exploit = TRUE THEN 1 END) AS remotely_exploitable
+FROM silver.cve_cleaned
+GROUP BY category
+ORDER BY total_cves DESC;
+
+-- ================================================================
+-- FONCTIONS UTILITAIRES
+-- ================================================================
+
+-- Fonction: Rafraîchir les timestamps updated_at
 CREATE OR REPLACE FUNCTION silver.update_modified_column()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -201,12 +148,39 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER trg_dim_cve_updated
-    BEFORE UPDATE ON silver.dim_cve
+-- Trigger: Auto-update de updated_at
+CREATE TRIGGER trigger_update_cve_cleaned_modtime
+    BEFORE UPDATE ON silver.cve_cleaned
     FOR EACH ROW
     EXECUTE FUNCTION silver.update_modified_column();
 
-CREATE TRIGGER trg_dim_products_updated
-    BEFORE UPDATE ON silver.dim_products
-    FOR EACH ROW
-    EXECUTE FUNCTION silver.update_modified_column();
+-- ================================================================
+-- COMMENTAIRES POUR DOCUMENTATION
+-- ================================================================
+
+COMMENT ON SCHEMA silver IS 'Silver Layer: Données nettoyées et standardisées issues de la couche Bronze';
+COMMENT ON TABLE silver.cve_cleaned IS 'CVEs nettoyées avec données validées et standardisées, prêtes pour transformation en Gold';
+COMMENT ON COLUMN silver.cve_cleaned.cve_id IS 'Identifiant unique CVE (format: CVE-YYYY-NNNNN)';
+COMMENT ON COLUMN silver.cve_cleaned.remotely_exploit IS 'Indique si la vulnérabilité est exploitable à distance';
+COMMENT ON COLUMN silver.cve_cleaned.affected_products IS 'Liste des produits affectés (format JSONB)';
+COMMENT ON COLUMN silver.cve_cleaned.cvss_scores IS 'Scores CVSS (v2/v3/v4) avec métriques (format JSONB)';
+
+-- ================================================================
+-- STATISTIQUES INITIALES
+-- ================================================================
+
+-- Analyser la table pour optimiser les requêtes
+ANALYZE silver.cve_cleaned;
+
+-- Afficher les statistiques
+DO $$
+BEGIN
+    RAISE NOTICE '================================================================';
+    RAISE NOTICE 'SILVER LAYER SCHEMA CREATED SUCCESSFULLY';
+    RAISE NOTICE '================================================================';
+    RAISE NOTICE 'Schema: silver';
+    RAISE NOTICE 'Tables: 1 (cve_cleaned)';
+    RAISE NOTICE 'Views: 4 (stats & quality checks)';
+    RAISE NOTICE 'Indexes: 6 (performance optimization)';
+    RAISE NOTICE '================================================================';
+END $$;

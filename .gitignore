@@ -1,66 +1,10 @@
-# ==============================
-# 🔧 Python / Environment
-# ==============================
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.venv/
-venv/
-env/
-ENV/
-.ipynb_checkpoints/
-*.egg-info/
-*.egg
-dist/
-build/
-.cache/
-.pytest_cache/
+# 🔒 Ignore archives & logs
+/archive/
+/logs/
 
-# ==============================
-# ⚙️ Configuration / Secrets
-# ==============================
-.env
-.env.*
-*.bak
-*.tmp
-*.log
+# 🗂 Ignore only JSON & JSON.zip inside Data/Raw (keep CSVs and others)
+Data/Raw/*.json
+Data/Raw/*.json.zip
 
-# ==============================
-# 📁 Data files (non versionnées)
-# ==============================
-# -> garde uniquement les fichiers finaux exportés ou échantillons légers
-Data/Raw/
-archive/Data/
-logs/
-
-# ==============================
-# 🧠 Jupyter / Notebooks
-# ==============================
+# (Optional) ignore Jupyter checkpoint folders
 *.ipynb_checkpoints/
-.notebooks_temp/
-*.ipynb_save/
-**/.ipynb_checkpoints/
-
-# ==============================
-# 📦 Output / Artifacts
-# ==============================
-output/
-!output/README.md                      # si tu veux garder un fichier d’explication
-*.zip
-
-# ==============================
-# 🖥️ OS & IDE files
-# ==============================
-.DS_Store
-Thumbs.db
-desktop.ini
-
-# ==============================
-# 🧰 VS Code / PyCharm / Misc
-# ==============================
-.vscode/
-.idea/
-*.swp
-*.swo
-~$*
