@@ -5,6 +5,7 @@ BRONZE ➜ SILVER: EDA & DATA CLEANING
 - Standardise les formats
 - Enlève les duplicatas et valeurs manquantes critiques
 - Prépare les données pour la modélisation Gold
+- Ajoute predicted_category (à entraîner ultérieurement)
 """
 
 from pathlib import Path
@@ -66,6 +67,71 @@ def _safe_json_load(x):
         return x
     except Exception:
         return None
+
+# -------------------------------------------------------------------
+# Prediction Function (Placeholder)
+# -------------------------------------------------------------------
+def predict_category_from_text(title: str, description: str) -> str:
+    """
+    Fonction placeholder pour prédire la catégorie à partir du titre et de la description.
+    
+    Cette fonction sera implémentée plus tard avec un modèle ML entraîné.
+    Pour l'instant, elle retourne None pour indiquer qu'aucune prédiction n'a été faite.
+    
+    Args:
+        title: Le titre du CVE
+        description: La description du CVE
+        
+    Returns:
+        str or None: La catégorie prédite (None pour l'instant)
+    """
+    # TODO: Implémenter la logique de prédiction avec un modèle ML
+    # Exemples d'approches possibles:
+    # 1. Modèle de classification (Random Forest, XGBoost, etc.)
+    # 2. Modèle NLP (BERT, transformers)
+    # 3. Règles basées sur des mots-clés
+    
+    return None
+
+def add_predicted_category(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Ajoute une colonne 'predicted_category' au DataFrame.
+    
+    Cette colonne contiendra les prédictions de catégories basées sur 
+    le titre et la description. Pour l'instant, elle reste vide (None).
+    
+    Args:
+        df: DataFrame avec colonnes 'title' et 'description'
+        
+    Returns:
+        DataFrame avec la nouvelle colonne 'predicted_category'
+    """
+    logger.info("\n🤖 ADDING PREDICTED CATEGORY COLUMN...")
+    
+    # S'assurer que les colonnes nécessaires existent
+    if 'title' not in df.columns:
+        df['title'] = ''
+    if 'description' not in df.columns:
+        df['description'] = ''
+    
+    # Appliquer la fonction de prédiction (placeholder pour l'instant)
+    df['predicted_category'] = df.apply(
+        lambda row: predict_category_from_text(
+            str(row['title']) if pd.notna(row['title']) else '',
+            str(row['description']) if pd.notna(row['description']) else ''
+        ),
+        axis=1
+    )
+    
+    # Statistiques
+    predicted_count = df['predicted_category'].notna().sum()
+    total_count = len(df)
+    
+    logger.info(f"   ✅ Column 'predicted_category' added")
+    logger.info(f"   📊 Predictions made: {predicted_count:,} / {total_count:,}")
+    logger.info(f"   ℹ️  Note: Prediction model not yet trained (all values are None)")
+    
+    return df
 
 # -------------------------------------------------------------------
 # Data Loading
@@ -166,6 +232,15 @@ def perform_eda(df: pd.DataFrame) -> pd.DataFrame:
         has_products = ~df['affected_products'].apply(_is_empty_json_like)
         logger.info(f"   CVEs with affected products: {has_products.sum():,} ({has_products.sum()/len(df)*100:.2f}%)")
     
+    # 7. Analyse des catégories existantes
+    logger.info(f"\n📑 CATEGORY ANALYSIS:")
+    if 'category' in df.columns:
+        cat_counts = df['category'].value_counts()
+        logger.info(f"   Total categories: {len(cat_counts)}")
+        logger.info(f"   Top 5 categories:")
+        for cat, count in cat_counts.head(5).items():
+            logger.info(f"      - {cat}: {count:,} ({count/len(df)*100:.2f}%)")
+    
     logger.info("\n" + "=" * 72)
     
     return df
@@ -244,7 +319,10 @@ def clean_silver_data(df: pd.DataFrame) -> pd.DataFrame:
         if removed_cvss > 0:
             logger.info(f"   ⚠️  Removed {removed_cvss:,} rows without CVSS scores")
     
-    # 9. Statistiques finales
+    # 9. NOUVEAU: Ajouter la colonne predicted_category
+    df = add_predicted_category(df)
+    
+    # 10. Statistiques finales
     logger.info(f"\n✅ CLEANING SUMMARY:")
     logger.info(f"   Initial rows: {initial_rows:,}")
     logger.info(f"   Final rows: {len(df):,}")
@@ -267,9 +345,9 @@ def create_silver_layer(df: pd.DataFrame) -> pd.DataFrame:
     logger.info("🏗️  CREATING SILVER LAYER")
     logger.info("=" * 72)
     
-    # Sélectionner et ordonner les colonnes pour Silver
+    # Sélectionner et ordonner les colonnes pour Silver (avec predicted_category)
     silver_columns = [
-        'cve_id', 'title', 'description', 'category',
+        'cve_id', 'title', 'description', 'category', 'predicted_category',
         'published_date', 'last_modified', 'loaded_at',
         'remotely_exploit', 'source_identifier',
         'affected_products', 'cvss_scores', 'url'
@@ -312,7 +390,7 @@ def run_eda_to_silver(limit: Optional[int] = None, if_exists: str = 'replace') -
         # 3. EDA
         df_with_eda = perform_eda(df_bronze)
         
-        # 4. Cleaning
+        # 4. Cleaning (inclut l'ajout de predicted_category)
         df_cleaned = clean_silver_data(df_with_eda)
         
         if df_cleaned.empty:

@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-SILVER ➜ GOLD TRANSFORMATION
+SILVER ➜ GOLD TRANSFORMATION (VERSION 2)
 - Modélisation en étoile (Star Schema)
 - Extraction des métriques CVSS depuis les vecteurs
-- Création des dimensions: dim_cve, dim_products, dim_cvss_source
-- Création des faits: cvss_v2, cvss_v3, cvss_v4
-- Création du bridge: bridge_cve_products
+- Dimensions: dim_cve, dim_vendor, dim_products, dim_cvss_source (chargée côté loader)
+- Faits: cvss_v2, cvss_v3, cvss_v4
+- Bridge: bridge_cve_products
 """
 
 from pathlib import Path
@@ -14,7 +14,7 @@ sys.path.append(str(Path(__file__).resolve().parents[2]))
 
 import argparse
 import logging
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Tuple, List
 import json
 import pandas as pd
 from sqlalchemy.engine import Engine
@@ -50,44 +50,37 @@ def _safe_json_load(x):
     """Charge du JSON de manière sécurisée"""
     try:
         if isinstance(x, str):
-            x = x.strip()
-            if x and x not in ('null', 'none', 'nan', ''):
-                return json.loads(x)
+            s = x.strip()
+            if s and s.lower() not in ('null', 'none', 'nan'):
+                return json.loads(s)
         elif isinstance(x, (list, dict)):
             return x
-    except:
+    except Exception:
         pass
     return None
 
 def _is_empty_json_like(x) -> bool:
-    """Vérifie si une valeur est vide/None de manière sécurisée"""
+    """True si valeur vide/None/[]"""
     try:
-        # None
         if x is None:
             return True
-        
-        # NaN (float)
         import numpy as np
-        if isinstance(x, float) and np.isnan(x):
+        if isinstance(x, float) and pd.isna(x):
             return True
-        
-        # Numpy array vide
-        if isinstance(x, np.ndarray):
-            return x.size == 0
-        
-        # String vide ou null-like
         if isinstance(x, str):
             s = x.strip().lower()
             return s in ("", "[]", "null", "none", "nan")
-        
-        # Collections vides
         if isinstance(x, (list, tuple, dict)):
             return len(x) == 0
-        
         return False
-    except:
-        # En cas d'erreur, considérer comme vide
+    except Exception:
         return True
+
+def _norm_text(s: Any, maxlen: Optional[int] = None) -> str:
+    val = "" if pd.isna(s) else str(s).replace("\xa0", " ").strip()
+    if maxlen:
+        return val[:maxlen]
+    return val
 
 # -------------------------------------------------------------------
 # Load Silver Data
@@ -96,9 +89,9 @@ def load_silver_data(engine: Engine, limit: Optional[int] = None) -> pd.DataFram
     logger.info("=" * 72)
     logger.info("📥 LOADING SILVER DATA")
     logger.info("=" * 72)
-    
+
     silver_schema = get_schema_name("silver")
-    
+
     if limit:
         query = f"""
             SELECT *
@@ -108,103 +101,105 @@ def load_silver_data(engine: Engine, limit: Optional[int] = None) -> pd.DataFram
         """
     else:
         query = f"SELECT * FROM {silver_schema}.cve_cleaned;"
-    
+
     df = pd.read_sql(query, engine)
     logger.info(f"✅ Loaded {len(df):,} rows from silver layer")
-    
     return df
 
 # -------------------------------------------------------------------
-# DIMENSION: dim_cve
+# DIMENSION: dim_cve (inclut predicted_category)
 # -------------------------------------------------------------------
 def create_dim_cve(df: pd.DataFrame) -> pd.DataFrame:
     logger.info("🔨 Building dimension: dim_cve...")
-    
-    columns = [
-        'cve_id', 'title', 'description', 'category',
-        'published_date', 'last_modified', 'loaded_at',
-        'remotely_exploit', 'source_identifier'
+
+    needed = [
+        'cve_id','title','description','category','predicted_category',
+        'published_date','last_modified','loaded_at','remotely_exploit','source_identifier'
     ]
-    
-    # S'assurer que les colonnes existent
-    for col in columns:
+    for col in needed:
         if col not in df.columns:
             df[col] = None
-    
-    # Agréger par CVE (au cas où il y aurait des doublons)
+
     dim_cve = df.groupby('cve_id', as_index=False).agg({
         'title': 'first',
         'description': 'first',
         'category': 'first',
+        'predicted_category': 'first',
         'published_date': 'first',
         'last_modified': 'max',
         'loaded_at': 'max',
         'remotely_exploit': 'first',
         'source_identifier': 'first'
     })
-    
+
+    # null safety & types to match DB constraints
+    dim_cve['cve_id'] = dim_cve['cve_id'].astype(str).str.slice(0, 20)
+    dim_cve['title'] = dim_cve['title'].fillna('Unknown')
+    for col in ['published_date','last_modified','loaded_at']:
+        dim_cve[col] = pd.to_datetime(dim_cve[col], errors='coerce')
+    now = pd.Timestamp.utcnow().tz_localize(None)
+    dim_cve['published_date'] = dim_cve['published_date'].fillna(now)
+    dim_cve['last_modified']  = dim_cve['last_modified'].fillna(dim_cve['published_date'])
+    dim_cve['loaded_at']      = dim_cve['loaded_at'].fillna(now)
+    dim_cve['source_identifier'] = dim_cve['source_identifier'].map(lambda x: _norm_text(x) or None)
+
     logger.info(f"✅ dim_cve: {len(dim_cve):,} unique CVEs")
-    
     return dim_cve
 
 # -------------------------------------------------------------------
 # CVSS Version Info
 # -------------------------------------------------------------------
-def get_version_info(version_str: str | None):
-    """Détermine la version CVSS et retourne (key, label)"""
-    if version_str == "CVSS 2.0": 
-        return "v2", "CVSS 2.0"
-    if version_str == "CVSS 3.0": 
-        return "v3", "CVSS 3.0"
-    if version_str == "CVSS 3.1": 
-        return "v3", "CVSS 3.1"
-    if version_str == "CVSS 4.0": 
-        return "v4", "CVSS 4.0"
+def get_version_info(version_str: Optional[str]) -> Tuple[Optional[str], Optional[str]]:
+    if version_str == "CVSS 2.0": return "v2", "CVSS 2.0"
+    if version_str == "CVSS 3.0": return "v3", "CVSS 3.0"
+    if version_str == "CVSS 3.1": return "v3", "CVSS 3.1"
+    if version_str == "CVSS 4.0": return "v4", "CVSS 4.0"
     return None, None
 
 # -------------------------------------------------------------------
 # FACTS: cvss_v2, cvss_v3, cvss_v4
 # -------------------------------------------------------------------
-def create_cvss_facts(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+def create_cvss_facts(df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     logger.info("🔨 Building CVSS facts with vector extraction...")
-    
-    records_v2 = []
-    records_v3 = []
-    records_v4 = []
-    
+
+    rec_v2: List[Dict[str, Any]] = []
+    rec_v3: List[Dict[str, Any]] = []
+    rec_v4: List[Dict[str, Any]] = []
+
     for _, row in df.iterrows():
-        cve_id = row['cve_id']
+        cve_id = row.get('cve_id')
+        if not cve_id:
+            continue
+
         scores = _safe_json_load(row.get('cvss_scores'))
-        
         if _is_empty_json_like(scores):
             continue
-        
-        # S'assurer que scores est une liste
         if isinstance(scores, dict):
             scores = [scores]
-        
+
         for score_entry in scores:
             if not isinstance(score_entry, dict):
                 continue
-            
+
             version = score_entry.get('version')
-            version_key, version_label = get_version_info(version)
-            
-            if not version_key:
+            vkey, vlabel = get_version_info(version)
+            if not vkey:
                 continue
-            
-            source = score_entry.get('source_identifier') or score_entry.get('source') or 'unknown'
-            vector = score_entry.get('vector') or ''
+
+            source = _norm_text(score_entry.get('source_identifier') or score_entry.get('source'), 100) or 'unknown'
+            vector = _norm_text(score_entry.get('vector'))
+            if not vector:
+                continue  # NOT NULL in schema
+
             score = score_entry.get('score')
             severity = score_entry.get('severity')
             exploitability = score_entry.get('exploitability_score')
             impact = score_entry.get('impact_score')
-            
-            # Parser le vecteur CVSS pour extraire les métriques
-            if version_key == 'v2':
-                metrics = CVSSVectorParser.parse_vector(vector, 'v2')
-                records_v2.append({
-                    'cve_id': cve_id,
+
+            if vkey == 'v2':
+                metrics = CVSSVectorParser.parse_vector(vector, 'v2') or {}
+                rec_v2.append({
+                    'cve_id': cve_id[:20],
                     'cvss_source': source,
                     'cvss_score': score,
                     'cvss_severity': severity,
@@ -218,13 +213,12 @@ def create_cvss_facts(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, pd.
                     'cvss_exploitability_score': exploitability,
                     'cvss_impact_score': impact,
                 })
-            
-            elif version_key == 'v3':
-                metrics = CVSSVectorParser.parse_vector(vector, 'v3')
-                records_v3.append({
-                    'cve_id': cve_id,
+            elif vkey == 'v3':
+                metrics = CVSSVectorParser.parse_vector(vector, 'v3') or {}
+                rec_v3.append({
+                    'cve_id': cve_id[:20],
                     'cvss_source': source,
-                    'cvss_version': version_label,
+                    'cvss_version': vlabel,
                     'cvss_score': score,
                     'cvss_severity': severity,
                     'cvss_vector': vector,
@@ -239,11 +233,10 @@ def create_cvss_facts(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, pd.
                     'cvss_exploitability_score': exploitability,
                     'cvss_impact_score': impact,
                 })
-            
-            elif version_key == 'v4':
-                metrics = CVSSVectorParser.parse_vector(vector, 'v4')
-                records_v4.append({
-                    'cve_id': cve_id,
+            elif vkey == 'v4':
+                metrics = CVSSVectorParser.parse_vector(vector, 'v4') or {}
+                rec_v4.append({
+                    'cve_id': cve_id[:20],
                     'cvss_source': source,
                     'cvss_score': score,
                     'cvss_severity': severity,
@@ -258,213 +251,234 @@ def create_cvss_facts(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, pd.
                     'cvss_v4_si': metrics.get('cvss_v4_si'),
                     'cvss_v4_sa': metrics.get('cvss_v4_sa'),
                 })
-    
-    # Créer les DataFrames
-    cvss_v2 = pd.DataFrame(records_v2)
-    cvss_v3 = pd.DataFrame(records_v3)
-    cvss_v4 = pd.DataFrame(records_v4)
-    
-    # Convertir les scores en numérique
-    for df_cvss in [cvss_v2, cvss_v3, cvss_v4]:
-        if not df_cvss.empty and 'cvss_score' in df_cvss.columns:
-            df_cvss['cvss_score'] = pd.to_numeric(df_cvss['cvss_score'], errors='coerce')
-            
-            for col in ['cvss_exploitability_score', 'cvss_impact_score']:
-                if col in df_cvss.columns:
-                    df_cvss[col] = pd.to_numeric(df_cvss[col], errors='coerce')
-    
-    logger.info(f"✅ CVSS Facts:")
+
+    cvss_v2 = pd.DataFrame(rec_v2)
+    cvss_v3 = pd.DataFrame(rec_v3)
+    cvss_v4 = pd.DataFrame(rec_v4)
+
+    for d in (cvss_v2, cvss_v3, cvss_v4):
+        if not d.empty and 'cvss_score' in d:
+            d['cvss_score'] = pd.to_numeric(d['cvss_score'], errors='coerce')
+            for col in ['cvss_exploitability_score','cvss_impact_score']:
+                if col in d.columns:
+                    d[col] = pd.to_numeric(d[col], errors='coerce')
+
+    logger.info("✅ CVSS Facts:")
     logger.info(f"   - cvss_v2: {len(cvss_v2):,} records")
     logger.info(f"   - cvss_v3: {len(cvss_v3):,} records")
     logger.info(f"   - cvss_v4: {len(cvss_v4):,} records")
-    
     return cvss_v2, cvss_v3, cvss_v4
 
 # -------------------------------------------------------------------
-# DIMENSION: dim_products + BRIDGE: bridge_cve_products
+# DIMENSIONS: dim_vendor + dim_products + BRIDGE: bridge_cve_products
 # -------------------------------------------------------------------
-def create_products_and_bridge(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
-    logger.info("🔨 Building dim_products + bridge_cve_products...")
-    
-    products_dict: Dict[tuple, Dict[str, Any]] = {}
-    bridge_records = []
-    
+def create_vendors_products_and_bridge(df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    logger.info("🔨 Building dim_vendor + dim_products + bridge_cve_products...")
+
+    vendors_dict: Dict[str, Dict[str, Any]] = {}
+    products_dict: Dict[Tuple[str, str], Dict[str, Any]] = {}
+    bridge_records: List[Dict[str, Any]] = []
+
     for _, row in df.iterrows():
-        cve_id = row['cve_id']
-        published_date = row['published_date']
+        cve_id = row.get('cve_id')
+        if not cve_id:
+            continue
+        published_date = pd.to_datetime(row.get('published_date'), errors='coerce')
+
         products = _safe_json_load(row.get('affected_products'))
-        
         if _is_empty_json_like(products):
             continue
-        
-        # S'assurer que products est une liste
         if isinstance(products, dict):
             products = [products]
-        
+
         for prod in products:
             if not isinstance(prod, dict):
                 continue
-            
-            vendor = (prod.get('vendor') or '').strip()
-            product = (prod.get('product') or '').strip()
-            
+
+            vendor = _norm_text(prod.get('vendor'))
+            product = _norm_text(prod.get('product'))
             if not vendor or not product:
                 continue
-            
-            # Clé unique: (vendor_lower, product_lower)
-            key = (vendor.lower(), product.lower())
-            
-            # Ajouter au dictionnaire des produits
-            if key not in products_dict:
-                products_dict[key] = {
-                    'vendor': vendor,
-                    'product_name': product,
-                    'cve_count': 0
+
+            vkey = vendor.lower()
+            pkey = product.lower()
+
+            # vendors
+            v = vendors_dict.get(vkey)
+            if v is None:
+                vendors_dict[vkey] = v = {
+                    'vendor_name': vendor,
+                    'total_products': set([pkey]),
+                    'total_cves': 1,
+                    'first_cve_date': published_date,
+                    'last_cve_date': published_date
                 }
-            
-            products_dict[key]['cve_count'] += 1
-            
-            # Ajouter au bridge
+            else:
+                v['total_cves'] += 1
+                v['total_products'].add(pkey)
+                if pd.notna(published_date):
+                    if v['first_cve_date'] is None or published_date < v['first_cve_date']:
+                        v['first_cve_date'] = published_date
+                    if v['last_cve_date'] is None or published_date > v['last_cve_date']:
+                        v['last_cve_date'] = published_date
+
+            # products
+            key = (vkey, pkey)
+            p = products_dict.get(key)
+            if p is None:
+                products_dict[key] = p = {
+                    'vendor_lower': vkey,
+                    'product_name': product,
+                    'total_cves': 1,
+                    'first_cve_date': published_date,
+                    'last_cve_date': published_date
+                }
+            else:
+                p['total_cves'] += 1
+                if pd.notna(published_date):
+                    if p['first_cve_date'] is None or published_date < p['first_cve_date']:
+                        p['first_cve_date'] = published_date
+                    if p['last_cve_date'] is None or published_date > p['last_cve_date']:
+                        p['last_cve_date'] = published_date
+
+            # bridge staging
             bridge_records.append({
-                'vendor_key': key[0],
-                'product_key': key[1],
-                'cve_id': cve_id,
-                'published_date': published_date
+                'cve_id': cve_id[:20],
+                'vendor_lower': vkey,
+                'product_lower': pkey
             })
-    
-    # Créer dim_products
-    if not products_dict:
-        dim_products = pd.DataFrame(columns=[
-            'product_id', 'vendor', 'product_name', 'total_cves',
-            'first_cve_date', 'last_cve_date'
-        ])
-        bridge = pd.DataFrame(columns=['cve_id', 'product_id'])
+
+    if not vendors_dict:
+        dim_vendor = pd.DataFrame(columns=['vendor_id','vendor_name','total_products','total_cves','first_cve_date','last_cve_date'])
+        dim_products = pd.DataFrame(columns=['product_id','vendor_id','product_name','total_cves','first_cve_date','last_cve_date'])
+        bridge = pd.DataFrame(columns=['cve_id','product_id'])
+        logger.info("✅ dim_vendor: 0 vendors")
         logger.info("✅ dim_products: 0 products")
         logger.info("✅ bridge_cve_products: 0 records")
-        return dim_products, bridge
-    
-    # Créer le DataFrame des produits avec IDs
+        return dim_vendor, dim_products, bridge
+
+    # finalize vendors
+    for v in vendors_dict.values():
+        v['total_products'] = len(v['total_products'])
+
+    dim_vendor = pd.DataFrame([
+        {
+            'vendor_id': i,
+            'vendor_name': d['vendor_name'],
+            'total_products': d['total_products'],
+            'total_cves': d['total_cves'],
+            'first_cve_date': d['first_cve_date'],
+            'last_cve_date': d['last_cve_date']
+        }
+        for i, (_, d) in enumerate(vendors_dict.items(), start=1)
+    ])
+
+    # vendor lookup lower -> id
+    vendor_lookup = {row['vendor_name'].lower(): int(row['vendor_id']) for _, row in dim_vendor.iterrows()}
+
+    # products with vendor_id
     dim_products = pd.DataFrame([
         {
             'product_id': i,
-            'vendor': d['vendor'],
+            'vendor_id': vendor_lookup.get(d['vendor_lower']),
             'product_name': d['product_name'],
-            'total_cves': d['cve_count']
+            'total_cves': d['total_cves'],
+            'first_cve_date': d['first_cve_date'],
+            'last_cve_date': d['last_cve_date']
         }
         for i, (_, d) in enumerate(products_dict.items(), start=1)
     ])
-    
-    # Créer le bridge avec product_id
-    bridge_df = pd.DataFrame(bridge_records)
-    
-    # Lookup table pour associer les clés aux product_id
-    lookup = {
-        (r['vendor'].lower(), r['product_name'].lower()): r['product_id']
+
+    # product lookup: (vendor_lower, product_lower) -> product_id
+    product_lookup = {
+        (r['vendor_id'], r['product_name'].lower()): int(r['product_id'])
         for _, r in dim_products.iterrows()
+        if pd.notna(r['vendor_id'])
     }
-    
+
+    # build bridge with product_id
+    bridge_df = pd.DataFrame(bridge_records)
+    bridge_df['vendor_id'] = bridge_df['vendor_lower'].map(lambda v: vendor_lookup.get(v))
     bridge_df['product_id'] = bridge_df.apply(
-        lambda x: lookup.get((x['vendor_key'], x['product_key'])),
-        axis=1
+        lambda x: product_lookup.get((x['vendor_id'], x['product_lower'])), axis=1
     )
-    
-    # Calculer first_cve_date et last_cve_date par produit
-    stats = bridge_df.groupby('product_id')['published_date'].agg([
-        ('first_cve_date', 'min'),
-        ('last_cve_date', 'max')
-    ]).reset_index()
-    
-    # Merger avec dim_products
-    dim_products = dim_products.merge(stats, on='product_id', how='left')
-    
-    # Créer le bridge final
-    bridge = bridge_df[['cve_id', 'product_id']].dropna().drop_duplicates().reset_index(drop=True)
-    
+    bridge = bridge_df[['cve_id','product_id']].dropna().drop_duplicates().reset_index(drop=True)
+
+    logger.info(f"✅ dim_vendor: {len(dim_vendor):,} unique vendors")
     logger.info(f"✅ dim_products: {len(dim_products):,} unique products")
     logger.info(f"✅ bridge_cve_products: {len(bridge):,} CVE-Product relationships")
-    
-    return dim_products, bridge
+    return dim_vendor, dim_products, bridge
 
 # -------------------------------------------------------------------
 # Main Transformation Pipeline
 # -------------------------------------------------------------------
 def transform_silver_to_gold(df_silver: pd.DataFrame) -> Dict[str, pd.DataFrame]:
     logger.info("=" * 72)
-    logger.info("🚀 SILVER ➜ GOLD TRANSFORMATION (STAR SCHEMA)")
+    logger.info("🚀 SILVER ➜ GOLD TRANSFORMATION (STAR SCHEMA V2)")
     logger.info("=" * 72)
-    
+
     # 1. Dimensions
     dim_cve = create_dim_cve(df_silver)
-    dim_products, bridge_cve_products = create_products_and_bridge(df_silver)
-    
+    dim_vendor, dim_products, bridge_cve_products = create_vendors_products_and_bridge(df_silver)
+
     # 2. Facts (CVSS)
     cvss_v2, cvss_v3, cvss_v4 = create_cvss_facts(df_silver)
-    
-    # 3. Préparer le dictionnaire de tables
+
+    # 3. Tables package
     gold_tables = {
         'dim_cve': dim_cve,
+        'dim_vendor': dim_vendor,
+        'dim_products': dim_products,
         'cvss_v2': cvss_v2,
         'cvss_v3': cvss_v3,
         'cvss_v4': cvss_v4,
-        'dim_products': dim_products,
         'bridge_cve_products': bridge_cve_products,
     }
-    
-    # 4. Afficher les statistiques
+
+    # 4. Stats
     logger.info("\n" + "=" * 72)
     logger.info("📊 GOLD LAYER STATISTICS")
     logger.info("=" * 72)
-    
-    for table_name, df_table in gold_tables.items():
-        if df_table.empty:
-            logger.info(f"🔹 {table_name}: 0 rows")
+    for name, d in gold_tables.items():
+        if d.empty:
+            logger.info(f"🔹 {name}: 0 rows")
         else:
-            mem = df_table.memory_usage(deep=True).sum() / 1024**2
-            logger.info(f"🔹 {table_name}: {len(df_table):,} rows | {len(df_table.columns)} cols | {mem:.2f} MB")
-    
+            mem = d.memory_usage(deep=True).sum() / 1024**2
+            logger.info(f"🔹 {name}: {len(d):,} rows | {len(d.columns)} cols | {mem:.2f} MB")
+
     logger.info("=" * 72)
     logger.info("✅ Transformation complete")
-    
     return gold_tables
 
 # -------------------------------------------------------------------
-# Main Pipeline Runner
+# Runner
 # -------------------------------------------------------------------
 def run_silver_to_gold(limit: Optional[int] = None, if_exists: str = 'replace') -> bool:
-    """
-    Pipeline complet: Silver → Transformation → Gold
-    """
     logger.info("=" * 72)
-    logger.info("🚀 SILVER ➜ GOLD PIPELINE")
+    logger.info("🚀 SILVER ➜ GOLD PIPELINE (VERSION 2)")
     logger.info("=" * 72)
-    
+
     try:
-        # 1. Connexion DB
         engine = create_db_engine()
-        
-        # 2. Charger Silver
         df_silver = load_silver_data(engine, limit=limit)
-        
         if df_silver.empty:
             logger.warning("⚠️  No data in silver layer!")
             return False
-        
-        # 3. Transformer en modèle en étoile
+
         gold_tables = transform_silver_to_gold(df_silver)
-        
-        # 4. Charger dans Gold
+
         logger.info("\n💾 Loading to Gold layer...")
         success = load_gold_layer(gold_tables, engine, if_exists=if_exists)
-        
+
         if success:
             logger.info("\n" + "=" * 72)
             logger.info("🎉 PIPELINE COMPLETED SUCCESSFULLY")
             logger.info("=" * 72)
         else:
             logger.error("\n❌ Pipeline failed during load")
-        
+
         return success
-        
+
     except Exception as e:
         logger.error(f"❌ Pipeline failed with error: {e}", exc_info=True)
         return False
@@ -474,20 +488,10 @@ def run_silver_to_gold(limit: Optional[int] = None, if_exists: str = 'replace') 
 # -------------------------------------------------------------------
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Silver ➜ Gold: Star Schema Transformation Pipeline"
+        description="Silver ➜ Gold: Star Schema Transformation Pipeline (V2)"
     )
-    parser.add_argument(
-        '--limit',
-        type=int,
-        default=None,
-        help='Limit number of rows to process (for testing)'
-    )
-    parser.add_argument(
-        '--if-exists',
-        choices=['append', 'replace'],
-        default='replace',
-        help='How to handle existing data in gold layer'
-    )
+    parser.add_argument('--limit', type=int, default=None, help='Limit number of rows to process (for testing)')
+    parser.add_argument('--if-exists', choices=['append', 'replace'], default='replace', help='Gold load mode')
     return parser.parse_args()
 
 if __name__ == "__main__":
@@ -495,6 +499,5 @@ if __name__ == "__main__":
     print(f"\n🚀 Running {Path(__file__).name}")
     print(f"   Limit: {args.limit or 'None (all data)'}")
     print(f"   Mode: {args.if_exists}\n")
-    
-    success = run_silver_to_gold(limit=args.limit, if_exists=args.if_exists)
-    sys.exit(0 if success else 1)
+    ok = run_silver_to_gold(limit=args.limit, if_exists=args.if_exists)
+    sys.exit(0 if ok else 1)

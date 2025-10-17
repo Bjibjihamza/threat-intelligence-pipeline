@@ -8,6 +8,11 @@
 from pathlib import Path
 import sys
 
+# --- ADD: en haut des imports ---
+import os
+
+
+
 # ---------------------------------------------------------------------------
 # Import path so we can import project modules (database, loaders, etc.)
 # Adjust if your repo depth changes.

@@ -2,6 +2,7 @@
 """
 LOAD SILVER LAYER
 Charge les données nettoyées dans la couche Silver (table unique: cve_cleaned)
+Inclut le support de predicted_category (ML)
 """
 
 from pathlib import Path
@@ -73,6 +74,22 @@ def verify_silver_schema(engine: Engine) -> bool:
             if not result.fetchone():
                 logger.error(f"❌ Table {schema}.{table} does not exist! Run silver.sql first.")
                 return False
+            
+            # Vérifier que predicted_category existe
+            result = conn.execute(
+                text("""
+                    SELECT column_name
+                    FROM information_schema.columns
+                    WHERE table_schema = :schema 
+                    AND table_name = :table 
+                    AND column_name = 'predicted_category'
+                """),
+                {"schema": schema, "table": table}
+            )
+            
+            if not result.fetchone():
+                logger.warning("⚠️  Column 'predicted_category' not found! Schema may need update.")
+                logger.warning("   Run: psql -d your_db -f database/schemas/silver.sql")
         
         logger.info("✅ Silver schema validated")
         return True
@@ -90,11 +107,12 @@ def prepare_silver_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     - Nettoie les colonnes et ne garde que celles nécessaires
     - Convertit les types de données correctement
     - Gère les JSONB pour PostgreSQL
+    - Inclut predicted_category
     """
     logger.info("🛠️ Preparing dataframe for silver layer...")
     
     required_columns = [
-        'cve_id', 'title', 'description', 'category',
+        'cve_id', 'title', 'description', 'category', 'predicted_category',
         'published_date', 'last_modified', 'loaded_at',
         'remotely_exploit', 'source_identifier',
         'affected_products', 'cvss_scores', 'url'
@@ -194,6 +212,12 @@ def prepare_silver_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     if before > after:
         logger.warning(f"⚠️  Removed {before - after} duplicate cve_ids")
     
+    # Statistiques sur predicted_category
+    if 'predicted_category' in df_clean.columns:
+        predicted_count = df_clean['predicted_category'].notna().sum()
+        prediction_rate = (predicted_count / len(df_clean) * 100) if len(df_clean) > 0 else 0
+        logger.info(f"🤖 Prediction stats: {predicted_count:,}/{len(df_clean):,} ({prediction_rate:.1f}%) with predictions")
+    
     logger.info(f"✅ Prepared {len(df_clean):,} rows for silver layer")
     logger.info(f"📋 Columns: {list(df_clean.columns)}")
     
@@ -271,6 +295,14 @@ def load_to_silver_table(
         with engine.connect() as conn:
             result = conn.execute(text(f"SELECT COUNT(*) FROM {full_table}"))
             final_count = result.scalar()
+            
+            # Compter les prédictions
+            result = conn.execute(text(f"""
+                SELECT COUNT(*) 
+                FROM {full_table} 
+                WHERE predicted_category IS NOT NULL
+            """))
+            predicted_count = result.scalar()
         
         stats['inserted'] = final_count if if_exists == 'replace' else rows_inserted
         
@@ -281,6 +313,7 @@ def load_to_silver_table(
         logger.info("=" * 72)
         logger.info(f"✅ Rows inserted: {stats['inserted']:,}")
         logger.info(f"🧮 Total rows in {table}: {final_count:,}")
+        logger.info(f"🤖 CVEs with predictions: {predicted_count:,} ({predicted_count/final_count*100:.1f}%)")
         logger.info(f"⏱️  Duration: {duration:.2f}s")
         if duration > 0:
             logger.info(f"⚡ Speed: {stats['inserted']/duration:.0f} rows/sec")
@@ -373,20 +406,38 @@ if __name__ == "__main__":
         logger.info("🧪 Running test mode...")
         
         # Créer des données de test
-        test_data = pd.DataFrame([{
-            'cve_id': 'CVE-2024-TEST',
-            'title': 'Test CVE',
-            'description': 'Test description',
-            'category': 'test',
-            'published_date': pd.Timestamp.now(),
-            'last_modified': pd.Timestamp.now(),
-            'loaded_at': pd.Timestamp.now(),
-            'remotely_exploit': True,
-            'source_identifier': 'test',
-            'affected_products': '[]',
-            'cvss_scores': '[]',
-            'url': 'https://test.com'
-        }])
+        test_data = pd.DataFrame([
+            {
+                'cve_id': 'CVE-2024-TEST-001',
+                'title': 'SQL Injection in Web App',
+                'description': 'A SQL injection vulnerability was found',
+                'category': 'sql',
+                'predicted_category': 'sql',  # Prediction correcte
+                'published_date': pd.Timestamp.now(),
+                'last_modified': pd.Timestamp.now(),
+                'loaded_at': pd.Timestamp.now(),
+                'remotely_exploit': True,
+                'source_identifier': 'test',
+                'affected_products': '[]',
+                'cvss_scores': '[]',
+                'url': 'https://test.com/001'
+            },
+            {
+                'cve_id': 'CVE-2024-TEST-002',
+                'title': 'Buffer Overflow in Network Service',
+                'description': 'A buffer overflow allows remote code execution',
+                'category': 'overflow',
+                'predicted_category': None,  # Pas de prédiction
+                'published_date': pd.Timestamp.now(),
+                'last_modified': pd.Timestamp.now(),
+                'loaded_at': pd.Timestamp.now(),
+                'remotely_exploit': True,
+                'source_identifier': 'test',
+                'affected_products': '[]',
+                'cvss_scores': '[]',
+                'url': 'https://test.com/002'
+            }
+        ])
         
         tables = {'cve_cleaned': test_data}
         success = load_silver_layer(tables, if_exists='replace')
@@ -397,3 +448,6 @@ if __name__ == "__main__":
         logger.info("   from batch.load.load_silver_layer import load_silver_layer")
         logger.info("   tables = {'cve_cleaned': your_dataframe}")
         logger.info("   success = load_silver_layer(tables, if_exists='replace')")
+        logger.info("")
+        logger.info("📝 Note: DataFrame must include 'predicted_category' column")
+        logger.info("   Use eda_bronze_to_silver.py to generate it automatically")

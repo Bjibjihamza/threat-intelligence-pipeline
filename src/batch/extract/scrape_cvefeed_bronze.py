@@ -423,7 +423,7 @@ class CVEScraper:
         logger.info(f"❌ Failed:                {overall_stats['failed']:,}")
         logger.info("="*70)
 
-        return overall_stats
+        return 
 
 
 # ============================================================================
@@ -435,7 +435,7 @@ def main():
     scraper = CVEScraper()
 
     # Load CVE list from CSV
-    cve_list_file = PROJECT_ROOT / "Data" / "cve_ids_all_year_2025_from_zip.csv"
+    cve_list_file = PROJECT_ROOT / "Data" / "cves_2020_2024.csv"
     logger.info(f"📂 Loading CVE list from: {cve_list_file}")
 
     cve_urls = []
