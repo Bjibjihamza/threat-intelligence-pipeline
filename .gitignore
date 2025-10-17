@@ -1,6 +1,6 @@
 # 🔒 Ignore archives & logs
-/archive/
-/logs/
+archive/
+logs/
 
 # 🗂 Ignore only JSON & JSON.zip inside Data/Raw (keep CSVs and others)
 Data/Raw/*.json
