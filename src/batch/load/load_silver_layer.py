@@ -387,6 +387,8 @@ def load_silver_layer(
     except Exception as e:
         logger.error(f"❌ Silver layer load failed: {e}", exc_info=True)
         return False
+    
+
 
 # -------------------------------------------------------------------
 # CLI Entry Point

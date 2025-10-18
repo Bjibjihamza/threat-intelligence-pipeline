@@ -1,0 +1,99 @@
+2025-10-18 00:48:43,479 - INFO - 🧪 Running test mode...
+2025-10-18 00:48:43,482 - INFO - ========================================================================
+2025-10-18 00:48:43,482 - INFO - 🚀 SILVER LAYER LOAD PIPELINE
+2025-10-18 00:48:43,482 - INFO - ========================================================================
+2025-10-18 00:48:43,553 - INFO - ✅ Connected to PostgreSQL at localhost:5432/tip
+2025-10-18 00:48:43,553 - INFO - 🔎 Verifying silver schema 'silver' and table 'cve_cleaned'...
+2025-10-18 00:48:43,564 - INFO - ✅ Silver schema validated
+2025-10-18 00:48:43,564 - INFO - ========================================================================
+2025-10-18 00:48:43,564 - INFO - 💾 LOADING TO SILVER: silver.cve_cleaned
+2025-10-18 00:48:43,565 - INFO -    Mode: replace
+2025-10-18 00:48:43,565 - INFO - ========================================================================
+2025-10-18 00:48:43,565 - INFO - 🛠️ Preparing dataframe for silver layer...
+2025-10-18 00:48:43,573 - INFO - 🤖 Prediction stats: 1/2 (50.0%) with predictions
+2025-10-18 00:48:43,573 - INFO - ✅ Prepared 2 rows for silver layer
+2025-10-18 00:48:43,574 - INFO - 📋 Columns: ['cve_id', 'title', 'description', 'category', 'predicted_category', 'published_date', 'last_modified', 'loaded_at', 'remotely_exploit', 'source_identifier', 'affected_products', 'cvss_scores', 'url']
+2025-10-18 00:48:43,574 - INFO - 📊 DataFrame shape: (2, 13)
+2025-10-18 00:48:43,574 - INFO - 📋 Columns to insert: ['cve_id', 'title', 'description', 'category', 'predicted_category', 'published_date', 'last_modified', 'loaded_at', 'remotely_exploit', 'source_identifier', 'affected_products', 'cvss_scores', 'url']
+2025-10-18 00:48:43,574 - INFO - 🗑️  Truncating table silver.cve_cleaned...
+2025-10-18 00:48:43,609 - INFO - ✅ Table truncated
+2025-10-18 00:48:43,610 - INFO - 📤 Inserting 2 rows...
+2025-10-18 00:48:43,633 - INFO - ========================================================================
+2025-10-18 00:48:43,633 - INFO - 📊 LOAD STATISTICS
+2025-10-18 00:48:43,634 - INFO - ========================================================================
+2025-10-18 00:48:43,634 - INFO - ✅ Rows inserted: 2
+2025-10-18 00:48:43,634 - INFO - 🧮 Total rows in cve_cleaned: 2
+2025-10-18 00:48:43,634 - INFO - 🤖 CVEs with predictions: 1 (50.0%)
+2025-10-18 00:48:43,634 - INFO - ⏱️  Duration: 0.07s
+2025-10-18 00:48:43,634 - INFO - ⚡ Speed: 30 rows/sec
+2025-10-18 00:48:43,634 - INFO - ========================================================================
+2025-10-18 00:48:43,640 - INFO - 
+========================================================================
+2025-10-18 00:48:43,641 - INFO - 🎉 SILVER LAYER LOAD COMPLETED SUCCESSFULLY
+2025-10-18 00:48:43,641 - INFO - ========================================================================
+2025-10-18 00:50:58,295 - INFO - 🧪 Running test mode...
+2025-10-18 00:50:58,297 - INFO - ========================================================================
+2025-10-18 00:50:58,297 - INFO - 🚀 SILVER LAYER LOAD PIPELINE
+2025-10-18 00:50:58,297 - INFO - ========================================================================
+2025-10-18 00:50:58,364 - INFO - ✅ Connected to PostgreSQL at localhost:5432/tip
+2025-10-18 00:50:58,364 - INFO - 🔎 Verifying silver schema 'silver' and table 'cve_cleaned'...
+2025-10-18 00:50:58,373 - INFO - ✅ Silver schema validated
+2025-10-18 00:50:58,373 - INFO - ========================================================================
+2025-10-18 00:50:58,373 - INFO - 💾 LOADING TO SILVER: silver.cve_cleaned
+2025-10-18 00:50:58,373 - INFO -    Mode: replace
+2025-10-18 00:50:58,373 - INFO - ========================================================================
+2025-10-18 00:50:58,374 - INFO - 🛠️ Preparing dataframe for silver layer...
+2025-10-18 00:50:58,378 - INFO - 🤖 Prediction stats: 1/2 (50.0%) with predictions
+2025-10-18 00:50:58,378 - INFO - ✅ Prepared 2 rows for silver layer
+2025-10-18 00:50:58,378 - INFO - 📋 Columns: ['cve_id', 'title', 'description', 'category', 'predicted_category', 'published_date', 'last_modified', 'loaded_at', 'remotely_exploit', 'source_identifier', 'affected_products', 'cvss_scores', 'url']
+2025-10-18 00:50:58,378 - INFO - 📊 DataFrame shape: (2, 13)
+2025-10-18 00:50:58,378 - INFO - 📋 Columns to insert: ['cve_id', 'title', 'description', 'category', 'predicted_category', 'published_date', 'last_modified', 'loaded_at', 'remotely_exploit', 'source_identifier', 'affected_products', 'cvss_scores', 'url']
+2025-10-18 00:50:58,378 - INFO - 🗑️  Truncating table silver.cve_cleaned...
+2025-10-18 00:50:58,415 - INFO - ✅ Table truncated
+2025-10-18 00:50:58,415 - INFO - 📤 Inserting 2 rows...
+2025-10-18 00:50:58,435 - INFO - ========================================================================
+2025-10-18 00:50:58,435 - INFO - 📊 LOAD STATISTICS
+2025-10-18 00:50:58,435 - INFO - ========================================================================
+2025-10-18 00:50:58,435 - INFO - ✅ Rows inserted: 2
+2025-10-18 00:50:58,436 - INFO - 🧮 Total rows in cve_cleaned: 2
+2025-10-18 00:50:58,436 - INFO - 🤖 CVEs with predictions: 1 (50.0%)
+2025-10-18 00:50:58,436 - INFO - ⏱️  Duration: 0.06s
+2025-10-18 00:50:58,436 - INFO - ⚡ Speed: 33 rows/sec
+2025-10-18 00:50:58,436 - INFO - ========================================================================
+2025-10-18 00:50:58,441 - INFO - 
+========================================================================
+2025-10-18 00:50:58,441 - INFO - 🎉 SILVER LAYER LOAD COMPLETED SUCCESSFULLY
+2025-10-18 00:50:58,441 - INFO - ========================================================================
+2025-10-18 00:51:41,716 - INFO - 🧪 Running test mode...
+2025-10-18 00:51:41,717 - INFO - ========================================================================
+2025-10-18 00:51:41,718 - INFO - 🚀 SILVER LAYER LOAD PIPELINE
+2025-10-18 00:51:41,718 - INFO - ========================================================================
+2025-10-18 00:51:41,793 - INFO - ✅ Connected to PostgreSQL at localhost:5432/tip
+2025-10-18 00:51:41,794 - INFO - 🔎 Verifying silver schema 'silver' and table 'cve_cleaned'...
+2025-10-18 00:51:41,800 - INFO - ✅ Silver schema validated
+2025-10-18 00:51:41,800 - INFO - ========================================================================
+2025-10-18 00:51:41,800 - INFO - 💾 LOADING TO SILVER: silver.cve_cleaned
+2025-10-18 00:51:41,800 - INFO -    Mode: INSERT ONLY (skip existing)
+2025-10-18 00:51:41,800 - INFO - ========================================================================
+2025-10-18 00:51:41,800 - INFO - 🛠️ Preparing dataframe for silver layer...
+2025-10-18 00:51:41,805 - INFO - ✅ Prepared 1 rows for silver layer
+2025-10-18 00:51:41,805 - INFO - 📊 DataFrame shape: (1, 13)
+2025-10-18 00:51:41,805 - INFO - 🔍 Checking for existing CVEs in Silver...
+2025-10-18 00:51:41,808 - INFO -    📊 Already in Silver: 0 CVE(s)
+2025-10-18 00:51:41,814 - INFO -    ➕ New CVEs to insert: 1
+2025-10-18 00:51:41,814 - INFO - 📤 Inserting 1 new CVE(s)...
+2025-10-18 00:51:41,837 - INFO - ========================================================================
+2025-10-18 00:51:41,837 - INFO - 📊 LOAD STATISTICS
+2025-10-18 00:51:41,837 - INFO - ========================================================================
+2025-10-18 00:51:41,838 - INFO - ✅ Inserted (new):      1
+2025-10-18 00:51:41,838 - INFO - ⭕ Skipped (existing):  0
+2025-10-18 00:51:41,838 - INFO - 🧮 Total in Silver:     3
+2025-10-18 00:51:41,838 - INFO - 🤖 With predictions:    1 (33.3%)
+2025-10-18 00:51:41,838 - INFO - ⏱️  Duration: 0.04s
+2025-10-18 00:51:41,838 - INFO - ⚡ Speed: 27 rows/sec
+2025-10-18 00:51:41,839 - INFO - ========================================================================
+2025-10-18 00:51:41,845 - INFO - 
+========================================================================
+2025-10-18 00:51:41,845 - INFO - 🎉 SILVER LAYER LOAD COMPLETED SUCCESSFULLY
+2025-10-18 00:51:41,845 - INFO - ========================================================================
+2025-10-18 00:51:41,846 - INFO - ✅ Test passed! Run again to see the skip behavior.

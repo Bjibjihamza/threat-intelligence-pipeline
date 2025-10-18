@@ -1,0 +1,621 @@
+#!/usr/bin/env python3
+# ============================================================================
+# CVE SCRAPER - Batch Bronze → EDA → Silver (15 CVE à la fois)
+# ============================================================================
+# Description: Scrape CVE + Load Bronze + EDA + Load Silver par batch de 15
+# Author: Data Engineering Team
+# Date: 2025-10-18
+# ============================================================================
+
+from pathlib import Path
+import sys
+
+# Add .../src to sys.path for absolute imports
+sys.path.append(str(Path(__file__).resolve().parents[2]))
+
+import requests
+from bs4 import BeautifulSoup
+import csv
+import time
+import logging
+import json
+import re
+import binascii
+from typing import List, Dict, Any, Tuple
+
+import pandas as pd
+from sqlalchemy import text
+from sqlalchemy.engine import Engine
+
+# ⭐ Import des modules de pipeline
+from batch.load.load_bronze_layer import load_bronze_layer, create_db_engine
+from batch.load.load_silver_layer_m import load_silver_layer
+from batch.transform.EDA_bronze_to_silver_m import (
+    perform_eda,
+    clean_silver_data,
+    create_silver_layer
+)
+from database.connection import get_schema_name
+
+# ----------------------------------------------------------------------------
+# Logging Configuration
+# ----------------------------------------------------------------------------
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+LOGS_DIR = PROJECT_ROOT / "logs"
+LOGS_DIR.mkdir(parents=True, exist_ok=True)
+LOG_FILE = LOGS_DIR / "scraper_batch_pipeline.log"
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler(LOG_FILE, encoding="utf-8"),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
+
+# ----------------------------------------------------------------------------
+# Cloudflare email decoding helpers
+# ----------------------------------------------------------------------------
+def decode_cfemail(hex_str: str) -> str:
+    """Decode Cloudflare-protected email from the 'data-cfemail' hex string."""
+    try:
+        data = bytearray(binascii.unhexlify(hex_str))
+        if not data:
+            return ""
+        key = data[0]
+        return ''.join(chr(b ^ key) for b in data[1:])
+    except Exception:
+        return ""
+
+def extract_email_from_tag(tag) -> str:
+    """Extract an email address from a BeautifulSoup tag with CF protection support."""
+    if not tag:
+        return ""
+
+    # Cloudflare wrapper
+    cf = tag.find(["a", "span"], class_=re.compile(r"__cf_email__"))
+    if cf and cf.has_attr("data-cfemail"):
+        decoded = decode_cfemail(cf["data-cfemail"])
+        if decoded:
+            return decoded.strip()
+
+    # Standard mailto link
+    link = tag.find("a", href=True)
+    if link and isinstance(link["href"], str) and link["href"].lower().startswith("mailto:"):
+        return link["href"].split("mailto:", 1)[-1].strip()
+
+    # Visible text fallback
+    return tag.get_text(" ", strip=True).strip()
+
+# ============================================================================
+# HELPER: Load scraped CVE from Bronze
+# ============================================================================
+def load_scraped_cve_from_bronze(cve_ids: List[str], engine: Engine) -> pd.DataFrame:
+    """Charge UNIQUEMENT les CVE spécifiés depuis Bronze."""
+    bronze_schema = get_schema_name("bronze")
+    
+    if not cve_ids:
+        logger.warning("⚠️  No CVE IDs provided!")
+        return pd.DataFrame()
+    
+    # Échapper les apostrophes pour SQL
+    escaped_ids = [f"'{cve_id.replace(chr(39), chr(39)+chr(39))}'" for cve_id in cve_ids]
+    placeholders = ', '.join(escaped_ids)
+    
+    query = f"""
+        SELECT *
+        FROM {bronze_schema}.cve_details
+        WHERE cve_id IN ({placeholders})
+        ORDER BY published_date DESC NULLS LAST
+    """
+    
+    logger.info(f"🔍 Loading {len(cve_ids)} scraped CVE(s) from bronze...")
+    df = pd.read_sql(query, engine)
+    logger.info(f"✅ Loaded {len(df)} row(s) from bronze")
+    
+    return df
+
+# ============================================================================
+# CVE SCRAPER CLASS WITH BATCH PIPELINE
+# ============================================================================
+class CVEBatchScraper:
+    def __init__(self):
+        self.headers = {
+            'User-Agent': (
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+                'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119 Safari/537.36'
+            )
+        }
+
+    def scrape_cve_page(self, url: str) -> Dict[str, Any]:
+        """Scrape information from a single CVE page"""
+        try:
+            response = requests.get(url, headers=self.headers, timeout=20)
+            response.raise_for_status()
+            soup = BeautifulSoup(response.content, 'html.parser')
+
+            cve_data = {
+                'cve_id': '',
+                'title': '',
+                'description': '',
+                'published_date': '',
+                'last_modified': '',
+                'remotely_exploit': '',
+                'source_identifier': '',
+                'category': '',
+                'affected_products': [],
+                'cvss_scores': [],
+                'url': url
+            }
+
+            # CVE ID
+            cve_id_elem = soup.find('h5', class_='fs-36 mb-1')
+            if cve_id_elem:
+                cve_data['cve_id'] = cve_id_elem.get_text(strip=True)
+
+            # Title
+            title_elem = soup.find('h5', class_='text mt-2')
+            if title_elem:
+                cve_data['title'] = title_elem.get_text(strip=True)
+
+            # Description
+            self._extract_description(soup, cve_data)
+
+            # INFO section
+            self._extract_info_section(soup, cve_data)
+
+            # Category
+            category_alert = soup.find('div', class_='alert-dark')
+            if category_alert:
+                category_strong = category_alert.find('strong')
+                if category_strong:
+                    cve_data['category'] = category_strong.get_text(strip=True)
+
+            # CVSS Scores
+            self._extract_all_cvss_scores(soup, cve_data)
+
+            # Affected products
+            self._extract_affected_products(soup, cve_data)
+
+            return cve_data
+
+        except Exception as e:
+            logger.error(f"Error scraping {url}: {str(e)}")
+            return None
+
+    def _extract_description(self, soup, cve_data):
+        """Extract description"""
+        desc_cards = soup.find_all('div', class_='card-body')
+        for card in desc_cards:
+            desc_p = card.find('p', class_='card-text')
+            if desc_p:
+                text = desc_p.get_text(strip=True)
+                if len(text) > 50 and 'vulnerability' in text.lower():
+                    cve_data['description'] = text
+                    return
+
+    def _extract_info_section(self, soup, cve_data):
+        """Extract Published Date, Last Modified, Remote Exploit, Source Identifier"""
+        info_cols = soup.find_all('div', class_='col-lg-3')
+
+        for col in info_cols:
+            label_elem = col.find('p', class_='mb-1') or col.find('p', class_='mb-2')
+            if not label_elem:
+                continue
+
+            label_text = label_elem.get_text(strip=True)
+            value_elem = col.find('h6', class_='text-truncate')
+            value_text = value_elem.get_text(strip=True) if value_elem else ""
+
+            if 'Published' in label_text or 'Date' in label_text:
+                cve_data['published_date'] = value_text
+            elif 'Modified' in label_text:
+                cve_data['last_modified'] = value_text
+            elif 'Exploit' in label_text or 'Remote' in label_text:
+                cve_data['remotely_exploit'] = value_text
+            elif 'Source' in label_text:
+                cve_data['source_identifier'] = extract_email_from_tag(col) or value_text
+
+    def _extract_all_cvss_scores(self, soup, cve_data):
+        """Extract ALL CVSS scores from table"""
+        cvss_tables = soup.find_all('table', class_='table-borderless')
+
+        for table in cvss_tables:
+            thead = table.find('thead')
+            if not thead:
+                continue
+
+            headers = [th.get_text(strip=True) for th in thead.find_all('th')]
+            if 'Score' not in headers or 'Vector' not in headers:
+                continue
+
+            tbody = table.find('tbody')
+            rows = tbody.find_all('tr') if tbody else table.find_all('tr')[1:]
+
+            for row in rows:
+                cells = row.find_all('td')
+                if len(cells) < 7:
+                    continue
+
+                cvss_entry = {}
+
+                # Score
+                score_btn = cells[0].find('b')
+                if score_btn:
+                    cvss_entry['score'] = score_btn.get_text(strip=True)
+
+                # Version
+                cvss_entry['version'] = cells[1].get_text(strip=True)
+
+                # Severity
+                cvss_entry['severity'] = cells[2].get_text(strip=True)
+
+                # Vector
+                vector_input = cells[3].find('input')
+                if vector_input:
+                    cvss_entry['vector'] = vector_input.get('value', '').strip()
+                else:
+                    cvss_entry['vector'] = cells[3].get_text(strip=True)
+
+                # Exploitability Score
+                exploit_btn = cells[4].find('b')
+                if exploit_btn:
+                    exploit_text = exploit_btn.get_text(strip=True)
+                    if exploit_text:
+                        cvss_entry['exploitability_score'] = exploit_text
+
+                # Impact Score
+                impact_btn = cells[5].find('b')
+                if impact_btn:
+                    impact_text = impact_btn.get_text(strip=True)
+                    if impact_text:
+                        cvss_entry['impact_score'] = impact_text
+
+                # Source Identifier
+                source_text = extract_email_from_tag(cells[6])
+                if source_text:
+                    cvss_entry['source_identifier'] = source_text
+
+                if cvss_entry.get('version') or cvss_entry.get('score') or cvss_entry.get('vector'):
+                    cve_data['cvss_scores'].append(cvss_entry)
+
+            logger.info(f"    Found {len(cve_data['cvss_scores'])} CVSS score(s)")
+            break
+
+    def _extract_affected_products(self, soup, cve_data):
+        """Extract affected vendors and products"""
+        affected_section = None
+        for h5 in soup.find_all('h5'):
+            if 'Affected Products' in h5.get_text():
+                affected_section = h5.find_parent('div', class_='card-body')
+                break
+
+        if not affected_section:
+            product_table = soup.find('table', class_='table-nowrap')
+            if product_table:
+                affected_section = product_table.find_parent('div', class_='card-body')
+
+        if not affected_section:
+            return
+
+        no_product_msg = affected_section.find('p', class_='text-warning')
+        if no_product_msg and 'No affected product' in no_product_msg.get_text():
+            return
+
+        product_table = affected_section.find('table', class_='table-nowrap')
+        if not product_table:
+            return
+
+        tbody = product_table.find('tbody')
+        if not tbody:
+            return
+
+        rows = tbody.find_all('tr')
+        for row in rows:
+            cells = row.find_all('td')
+            if len(cells) >= 3:
+                product_id = cells[0].get_text(strip=True)
+                vendor = cells[1].get_text(strip=True)
+                product = cells[2].get_text(strip=True)
+
+                if vendor or product:
+                    cve_data['affected_products'].append({
+                        'id': product_id,
+                        'vendor': vendor,
+                        'product': product
+                    })
+
+        logger.info(f"    Found {len(cve_data['affected_products'])} affected product(s)")
+
+    # ========================================================================
+    # ⭐ BATCH PIPELINE: Bronze → EDA → Silver (15 CVE à la fois)
+    # ========================================================================
+    def scrape_and_load_batch_pipeline(
+        self,
+        cve_list: List[Tuple[str, str]],
+        batch_size: int = 15,
+        delay: int = 2,
+        engine: Engine = None
+    ) -> Dict[str, Any]:
+        """
+        ⭐ PIPELINE COMPLET PAR BATCH:
+        1. Scrape 15 CVE
+        2. Load → Bronze
+        3. EDA sur ces 15 CVE
+        4. Load → Silver
+        5. Répéter pour les 15 suivants
+        
+        Args:
+            cve_list: List of (cve_id, url) tuples
+            batch_size: CVE par batch (défaut: 15)
+            delay: Délai entre requêtes (secondes)
+            engine: SQLAlchemy engine (optionnel)
+        
+        Returns:
+            dict: Statistiques globales
+        """
+        logger.info("=" * 80)
+        logger.info("🚀 BATCH PIPELINE: Scrape → Bronze → EDA → Silver")
+        logger.info("=" * 80)
+        logger.info(f"📋 Total CVEs to process: {len(cve_list):,}")
+        logger.info(f"📦 Batch size: {batch_size}")
+        logger.info(f"⏱️  Delay: {delay}s")
+        logger.info("=" * 80)
+
+        # Create engine if not provided
+        if engine is None:
+            engine = create_db_engine()
+
+        # ⭐ CHECK EXISTING CVEs in BOTH Bronze AND Silver BEFORE scraping
+        logger.info("🔍 Checking existing CVEs in database...")
+        
+        with engine.connect() as conn:
+            # Check Bronze
+            result = conn.execute(text("SELECT cve_id FROM raw.cve_details"))
+            existing_in_bronze = {row[0] for row in result.fetchall()}
+            
+            # Check Silver
+            silver_schema = get_schema_name("silver")
+            result = conn.execute(text(f"SELECT cve_id FROM {silver_schema}.cve_cleaned"))
+            existing_in_silver = {row[0] for row in result.fetchall()}
+        
+        # Union des deux pour éviter tout re-scraping
+        existing_cves = existing_in_bronze | existing_in_silver
+
+        logger.info(f"📊 Already in Bronze: {len(existing_in_bronze):,} CVEs")
+        logger.info(f"📊 Already in Silver: {len(existing_in_silver):,} CVEs")
+        logger.info(f"📊 Total existing (union): {len(existing_cves):,} CVEs")
+
+        # ⭐ Filter to scrape - SKIP if exists in Bronze OR Silver
+        to_scrape = [
+            (cve_id, url) for cve_id, url in cve_list
+            if cve_id not in existing_cves
+        ]
+
+        logger.info(f"🎯 New CVEs to scrape: {len(to_scrape):,}")
+        
+        if len(to_scrape) > 0:
+            logger.info(f"⚡ Will process in batches of {batch_size}")
+
+        if not to_scrape:
+            logger.info("✅ All CVEs already in database!")
+            return {
+                'total': 0,
+                'scraped': 0,
+                'bronze_inserted': 0,
+                'bronze_skipped': 0,
+                'silver_inserted': 0,
+                'silver_skipped': 0,
+                'failed': 0
+            }
+
+        # Overall stats
+        overall_stats = {
+            'total': len(to_scrape),
+            'scraped': 0,
+            'bronze_inserted': 0,
+            'bronze_skipped': 0,
+            'silver_inserted': 0,
+            'silver_skipped': 0,
+            'failed': 0
+        }
+
+        batch = []
+        batch_number = 0
+
+        try:
+            for idx, (cve_id, url) in enumerate(to_scrape, 1):
+                logger.info(f"[{idx}/{len(to_scrape)}] Scraping {cve_id}...")
+
+                data = self.scrape_cve_page(url)
+
+                if data:
+                    batch.append(data)
+                    overall_stats['scraped'] += 1
+
+                    # Log summary
+                    scores_summary = ', '.join([
+                        f"{s.get('version', 'N/A')}: {s.get('score', 'N/A')}"
+                        for s in data['cvss_scores']
+                    ])
+                    logger.info(f"    ✓ Scores: {scores_summary}")
+                else:
+                    logger.warning(f"    ✗ Failed to scrape {cve_id}")
+                    overall_stats['failed'] += 1
+
+                # ⭐ PROCESS BATCH: Bronze → EDA → Silver
+                if len(batch) >= batch_size or idx == len(to_scrape):
+                    if batch:
+                        batch_number += 1
+                        batch_stats = self._process_batch(
+                            batch,
+                            batch_number,
+                            engine
+                        )
+                        
+                        # Update overall stats
+                        overall_stats['bronze_inserted'] += batch_stats['bronze_inserted']
+                        overall_stats['bronze_skipped'] += batch_stats['bronze_skipped']
+                        overall_stats['silver_inserted'] += batch_stats['silver_inserted']
+                        overall_stats['silver_skipped'] += batch_stats['silver_skipped']
+                        
+                        batch = []  # Reset batch
+
+                # Delay before next request
+                if idx < len(to_scrape):
+                    time.sleep(delay)
+
+        except KeyboardInterrupt:
+            logger.warning("\n⚠️  KeyboardInterrupt detected!")
+            if batch:
+                logger.info("💾 Processing partial batch...")
+                batch_number += 1
+                batch_stats = self._process_batch(batch, batch_number, engine)
+                overall_stats['bronze_inserted'] += batch_stats['bronze_inserted']
+                overall_stats['bronze_skipped'] += batch_stats['bronze_skipped']
+                overall_stats['silver_inserted'] += batch_stats['silver_inserted']
+                overall_stats['silver_skipped'] += batch_stats['silver_skipped']
+
+        # Final summary
+        logger.info("\n" + "=" * 80)
+        logger.info("🎉 COMPLETE BATCH PIPELINE FINISHED")
+        logger.info("=" * 80)
+        logger.info(f"📊 Total CVEs attempted:    {overall_stats['total']:,}")
+        logger.info(f"✅ Successfully scraped:    {overall_stats['scraped']:,}")
+        logger.info(f"📥 Bronze inserted:         {overall_stats['bronze_inserted']:,}")
+        logger.info(f"⭕ Bronze skipped:          {overall_stats['bronze_skipped']:,}")
+        logger.info(f"💎 Silver inserted:         {overall_stats['silver_inserted']:,}")
+        logger.info(f"⭕ Silver skipped:          {overall_stats['silver_skipped']:,}")
+        logger.info(f"❌ Failed:                  {overall_stats['failed']:,}")
+        logger.info("=" * 80)
+
+        return overall_stats
+
+    def _process_batch(
+        self,
+        batch: List[Dict[str, Any]],
+        batch_number: int,
+        engine: Engine
+    ) -> Dict[str, int]:
+        """
+        ⭐ Traite un batch: Bronze → EDA → Silver
+        """
+        logger.info("\n" + "=" * 80)
+        logger.info(f"📦 PROCESSING BATCH #{batch_number} ({len(batch)} CVEs)")
+        logger.info("=" * 80)
+
+        stats = {
+            'bronze_inserted': 0,
+            'bronze_skipped': 0,
+            'silver_inserted': 0,
+            'silver_skipped': 0
+        }
+
+        # ====================================================================
+        # STEP 1: Load to Bronze
+        # ====================================================================
+        logger.info(f"\n📥 STEP 1/3: Loading {len(batch)} CVEs to Bronze...")
+        bronze_stats = load_bronze_layer(batch, engine)
+        
+        stats['bronze_inserted'] = bronze_stats.get('inserted', 0)
+        stats['bronze_skipped'] = bronze_stats.get('skipped', 0)
+        
+        logger.info(f"✅ Bronze: {stats['bronze_inserted']} inserted, "
+                   f"{stats['bronze_skipped']} skipped")
+
+        # Si rien n'a été inséré dans Bronze, pas besoin de continuer
+        if stats['bronze_inserted'] == 0:
+            logger.info("⏭️  No new CVEs in Bronze, skipping EDA/Silver")
+            return stats
+
+        # ====================================================================
+        # STEP 2: Load from Bronze + EDA + Cleaning
+        # ====================================================================
+        logger.info(f"\n🔍 STEP 2/3: EDA & Cleaning ({stats['bronze_inserted']} new CVEs)...")
+        
+        # Extraire les CVE IDs qui ont été insérés
+        inserted_cve_ids = [
+            cve['cve_id'] for cve in batch
+            if cve.get('cve_id')
+        ][:stats['bronze_inserted']]  # Prendre uniquement ceux insérés
+        
+        # Charger depuis Bronze
+        df_bronze = load_scraped_cve_from_bronze(inserted_cve_ids, engine)
+        
+        if df_bronze.empty:
+            logger.warning("⚠️  Could not load CVEs from Bronze!")
+            return stats
+        
+        # EDA
+        logger.info("🔬 Running EDA...")
+        df_with_eda = perform_eda(df_bronze)
+        
+        # Cleaning
+        logger.info("🧹 Cleaning data...")
+        df_cleaned = clean_silver_data(df_with_eda)
+        
+        if df_cleaned.empty:
+            logger.warning("⚠️  No valid data after cleaning!")
+            return stats
+        
+        # Create Silver format
+        logger.info("🏗️  Creating silver format...")
+        silver_df = create_silver_layer(df_cleaned)
+
+        # ====================================================================
+        # STEP 3: Load to Silver (APPEND mode)
+        # ====================================================================
+        logger.info(f"\n💾 STEP 3/3: Loading {len(silver_df)} CVEs to Silver (append)...")
+        
+        tables = {"cve_cleaned": silver_df}
+        silver_success = load_silver_layer(tables, engine)
+        
+        if silver_success:
+            # Compter combien ont été insérés dans Silver
+            # (approximation: tous ceux qui étaient valides après cleaning)
+            stats['silver_inserted'] = len(silver_df)
+            logger.info(f"✅ Silver: {stats['silver_inserted']} processed")
+        else:
+            logger.warning("⚠️  Silver load failed!")
+
+        logger.info(f"\n✅ BATCH #{batch_number} COMPLETED")
+        logger.info("=" * 80)
+
+        return stats
+
+
+# ============================================================================
+# MAIN EXECUTION
+# ============================================================================
+def main():
+    """Main execution function"""
+    logger.info("🔧 Initializing CVE Batch Scraper with full pipeline...")
+    scraper = CVEBatchScraper()
+
+    # Load CVE list from CSV
+    cve_list_file = PROJECT_ROOT / "Data" / "cves_2020_2024.csv"
+    logger.info(f"📂 Loading CVE list from: {cve_list_file}")
+
+    cve_list = []
+    with open(cve_list_file, 'r', encoding='utf-8') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            cve_list.append((row['cve_id'], row['url']))
+
+    logger.info(f"✅ Loaded {len(cve_list):,} CVE URLs\n")
+
+    # ⭐ Scrape and load with full pipeline (15 CVE batches)
+    stats = scraper.scrape_and_load_batch_pipeline(
+        cve_list,
+        batch_size=15,  # Process 15 CVEs at a time
+        delay=2          # 2 seconds between requests
+    )
+
+    return stats
+
+
+if __name__ == "__main__":
+    print(f"▶ Running {Path(__file__).name}")
+    main()

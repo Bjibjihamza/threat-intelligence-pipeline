@@ -1,13 +1,2 @@
-# 🔒 Ignore archives & logs
 archive/
-logs/
-
-# 🗂 Ignore only JSON & JSON.zip inside Data/Raw (keep CSVs and others)
-Data/Raw/*.json
-Data/Raw/*.json.zip
-
-# (Optional) ignore Jupyter checkpoint folders
-*.ipynb_checkpoints/
-
-
 .env

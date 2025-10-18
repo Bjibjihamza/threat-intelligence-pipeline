@@ -1,0 +1,91 @@
+2025-10-17 23:22:31,142 - INFO - ========================================================================
+2025-10-17 23:22:31,142 - INFO - 🚀 SILVER ➜ GOLD PIPELINE (VERSION 2)
+2025-10-17 23:22:31,143 - INFO - ========================================================================
+2025-10-17 23:22:31,234 - INFO - ✅ Connected to PostgreSQL at localhost:5432/tip
+2025-10-17 23:22:31,234 - INFO - ========================================================================
+2025-10-17 23:22:31,234 - INFO - 📥 LOADING SILVER DATA
+2025-10-17 23:22:31,234 - INFO - ========================================================================
+2025-10-17 23:22:32,700 - INFO - ✅ Loaded 77,525 rows from silver layer
+2025-10-17 23:22:32,701 - INFO - ========================================================================
+2025-10-17 23:22:32,702 - INFO - 🚀 SILVER ➜ GOLD TRANSFORMATION (STAR SCHEMA V2)
+2025-10-17 23:22:32,702 - INFO - ========================================================================
+2025-10-17 23:22:32,702 - INFO - 🔨 Building dimension: dim_cve...
+2025-10-17 23:22:33,199 - INFO - ✅ dim_cve: 77,525 unique CVEs
+2025-10-17 23:22:33,201 - INFO - 🔨 Building dim_vendor + dim_products + bridge_cve_products...
+2025-10-17 23:22:46,918 - INFO - ✅ dim_vendor: 12,077 unique vendors
+2025-10-17 23:22:46,919 - INFO - ✅ dim_products: 56,456 unique products
+2025-10-17 23:22:46,919 - INFO - ✅ bridge_cve_products: 285,641 CVE-Product relationships
+2025-10-17 23:22:47,012 - INFO - 🔨 Building CVSS facts with vector extraction...
+2025-10-17 23:22:54,460 - INFO - ✅ CVSS Facts:
+2025-10-17 23:22:54,460 - INFO -    - cvss_v2: 47,424 records
+2025-10-17 23:22:54,461 - INFO -    - cvss_v3: 67,341 records
+2025-10-17 23:22:54,461 - INFO -    - cvss_v4: 6,818 records
+2025-10-17 23:22:54,528 - INFO - 
+========================================================================
+2025-10-17 23:22:54,529 - INFO - 📊 GOLD LAYER STATISTICS
+2025-10-17 23:22:54,529 - INFO - ========================================================================
+2025-10-17 23:22:54,689 - INFO - 🔹 dim_cve: 77,525 rows | 10 cols | 63.62 MB
+2025-10-17 23:22:54,695 - INFO - 🔹 dim_vendor: 12,077 rows | 6 cols | 1.25 MB
+2025-10-17 23:22:54,715 - INFO - 🔹 dim_products: 56,456 rows | 6 cols | 6.11 MB
+2025-10-17 23:22:54,862 - INFO - 🔹 cvss_v2: 47,424 rows | 13 cols | 29.74 MB
+2025-10-17 23:22:55,062 - INFO - 🔹 cvss_v3: 67,341 rows | 16 cols | 55.43 MB
+2025-10-17 23:22:55,085 - INFO - 🔹 cvss_v4: 6,818 rows | 14 cols | 6.30 MB
+2025-10-17 23:22:55,136 - INFO - 🔹 bridge_cve_products: 285,641 rows | 2 cols | 21.41 MB
+2025-10-17 23:22:55,136 - INFO - ========================================================================
+2025-10-17 23:22:55,136 - INFO - ✅ Transformation complete
+2025-10-17 23:22:55,136 - INFO - 
+💾 Loading to Gold layer...
+2025-10-17 23:22:55,137 - INFO - ========================================================================
+2025-10-17 23:22:55,137 - INFO - 🚀 GOLD LAYER LOAD PIPELINE (STAR SCHEMA V2)
+2025-10-17 23:22:55,137 - INFO - ========================================================================
+2025-10-17 23:22:55,137 - INFO - 🔎 Verifying gold schema 'gold'...
+2025-10-17 23:22:55,151 - INFO - ✅ Gold schema validated (8 tables)
+2025-10-17 23:22:55,151 - INFO - 📥 Loading dim_cvss_source...
+2025-10-17 23:22:55,463 - INFO - ✅ Loaded/mapped 286 CVSS sources
+2025-10-17 23:22:55,463 - INFO - 📥 Loading dim_cve...
+2025-10-17 23:23:18,983 - INFO - ✅ dim_cve: 77,525 rows loaded
+2025-10-17 23:23:18,991 - INFO - 📥 Loading dim_vendor...
+2025-10-17 23:23:21,138 - INFO - ✅ dim_vendor: 12,077 rows loaded
+2025-10-17 23:23:21,139 - INFO - 📥 Loading dim_products...
+2025-10-17 23:23:31,134 - INFO - ✅ dim_products: 56,456 rows loaded
+2025-10-17 23:23:31,136 - INFO - 📥 Loading cvss_v2...
+2025-10-17 23:23:47,662 - INFO - ✅ cvss_v2: 47,424 rows loaded
+2025-10-17 23:23:47,666 - INFO - 📥 Loading cvss_v3...
+2025-10-17 23:24:12,047 - INFO - ✅ cvss_v3: 67,341 rows loaded
+2025-10-17 23:24:12,051 - INFO - 📥 Loading cvss_v4...
+2025-10-17 23:24:14,333 - INFO - ✅ cvss_v4: 6,818 rows loaded
+2025-10-17 23:24:14,335 - INFO - 📥 Loading bridge_cve_products...
+2025-10-17 23:24:47,620 - INFO - ✅ bridge_cve_products: 285,641 relationships loaded
+2025-10-17 23:24:47,622 - INFO - 🔄 Refreshing materialized views...
+2025-10-17 23:24:47,626 - ERROR - ❌ Error refreshing views: (psycopg2.errors.UndefinedTable) relation "gold.mv_cve_all_cvss" does not exist
+
+[SQL: REFRESH MATERIALIZED VIEW CONCURRENTLY gold.mv_cve_all_cvss;]
+(Background on this error at: https://sqlalche.me/e/20/f405)
+2025-10-17 23:24:49,762 - INFO - 
+========================================================================
+2025-10-17 23:24:49,762 - INFO - 📊 GOLD LAYER LOAD STATISTICS
+2025-10-17 23:24:49,762 - INFO - ========================================================================
+2025-10-17 23:24:49,762 - INFO - DIMENSIONS:
+2025-10-17 23:24:49,762 - INFO -   - dim_cve: 77,525 rows
+2025-10-17 23:24:49,763 - INFO -   - dim_cvss_source: 286 rows
+2025-10-17 23:24:49,763 - INFO -   - dim_vendor: 12,077 rows
+2025-10-17 23:24:49,763 - INFO -   - dim_products: 56,456 rows
+2025-10-17 23:24:49,763 - INFO - 
+FACTS:
+2025-10-17 23:24:49,763 - INFO -   - cvss_v2: 47,424 rows
+2025-10-17 23:24:49,763 - INFO -   - cvss_v3: 67,341 rows
+2025-10-17 23:24:49,763 - INFO -   - cvss_v4: 6,818 rows
+2025-10-17 23:24:49,763 - INFO - 
+BRIDGE:
+2025-10-17 23:24:49,764 - INFO -   - bridge_cve_products: 285,641 relationships
+2025-10-17 23:24:49,764 - INFO - 
+PERFORMANCE:
+2025-10-17 23:24:49,764 - INFO -   - Duration: 114.61s
+2025-10-17 23:24:49,765 - INFO -   - Total rows: 553,282
+2025-10-17 23:24:49,765 - INFO - ========================================================================
+2025-10-17 23:24:49,765 - INFO - 🎉 GOLD LAYER LOAD COMPLETED SUCCESSFULLY
+2025-10-17 23:24:49,765 - INFO - ========================================================================
+2025-10-17 23:24:49,766 - INFO - 
+========================================================================
+2025-10-17 23:24:49,766 - INFO - 🎉 PIPELINE COMPLETED SUCCESSFULLY
+2025-10-17 23:24:49,766 - INFO - ========================================================================
