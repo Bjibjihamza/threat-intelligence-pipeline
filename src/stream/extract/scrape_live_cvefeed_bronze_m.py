@@ -16,8 +16,11 @@ import os
 # Import path setup
 # ---------------------------------------------------------------------------
 FILE_PATH = Path(__file__).resolve()
-SRC_ROOT = FILE_PATH.parents[3]
-PROJECT_ROOT = FILE_PATH.parents[4] if len(FILE_PATH.parents) >= 5 else FILE_PATH.parents[3]
+
+# APRÈS (adapté à src/stream/extract)
+SRC_ROOT = FILE_PATH.parents[2]          # .../src
+PROJECT_ROOT = FILE_PATH.parents[3]      # racine du projet
+
 
 if str(SRC_ROOT) not in sys.path:
     sys.path.append(str(SRC_ROOT))
