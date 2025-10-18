@@ -1,0 +1,56 @@
+cve_id,title,description,published_date,last_modified,remotely_exploit,source_identifier,category,affected_products,cvss_scores,url
+CVE-2025-62652,Stored XSS in WebAuthn key name,"Improper Neutralization of Input During Web Page Generation (XSS or 'Cross-site Scripting') vulnerability in The Wikimedia Foundation MediaWiki WebAuthn extension allows Stored XSS.This issue affects MediaWiki WebAuthn extension: 1.39, 1.43, 1.44.","Oct. 17, 2025, 11:15 p.m.","Oct. 17, 2025, 11:15 p.m.",Yes !,Source : c4f26cc8-17ff-4c99-b5e2-38fc1793eacc,Cross-Site Scripting,[],"[{""score"": ""5.8"", ""version"": ""CVSS 4.0"", ""severity"": ""MEDIUM"", ""vector"": ""CVSS:4.0/AV:N/AC:L/AT:P/PR:L/UI:A/VC:L/VI:H/VA:H/SC:N/SI:N/SA:N/AU:N/R:U/V:C/RE:L/U:Amber"", ""source_identifier"": ""c4f26cc8-17ff-4c99-b5e2-38fc1793eacc""}, {""score"": ""5.8"", ""version"": ""CVSS 4.0"", ""severity"": ""MEDIUM"", ""vector"": ""CVSS:4.0/AV:N/AC:L/AT:P/PR:L/UI:A/VC:L/VI:H/VA:H/SC:N/SI:N/SA:N/E:X/CR:X/IR:X/AR:X/MAV:X/MAC:X/MAT:X/MPR:X/MUI:X/MVC:X/MVI:X/MVA:X/MSC:X/MSI:X/MSA:X/S:X/AU:N/R:U/V:C/RE:L/U:Amber"", ""source_identifier"": ""c4f26cc8-17ff-4c99-b5e2-38fc1793eacc""}]",https://cvefeed.io/vuln/detail/CVE-2025-62652
+CVE-2025-62651,RBI Assistant Platform Bathroom Rating Interface Unauthenticated Access Vulnerability,"The following products are affected byCVE-2025-62651vulnerability.
+                                            Even ifcvefeed.iois aware of the exact versions of the
+                                            products
+                                            that
+                                            are
+                                            affected, the information is not represented in the table below.","Oct. 17, 2025, 9:15 p.m.","Oct. 18, 2025, 1:15 a.m.",Yes !,cve@mitre.org,Authorization,[],"[{""score"": ""6.5"", ""version"": ""CVSS 3.1"", ""severity"": ""MEDIUM"", ""vector"": ""CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N"", ""exploitability_score"": ""3.9"", ""impact_score"": ""2.5"", ""source_identifier"": ""cve@mitre.org""}]",https://cvefeed.io/vuln/detail/CVE-2025-62651
+CVE-2025-62650,RBI Restaurant Brands International Client-Side Authentication Bypass,"The following products are affected byCVE-2025-62650vulnerability.
+                                            Even ifcvefeed.iois aware of the exact versions of the
+                                            products
+                                            that
+                                            are
+                                            affected, the information is not represented in the table below.","Oct. 17, 2025, 9:15 p.m.","Oct. 18, 2025, 1:15 a.m.",Yes !,cve@mitre.org,Authentication,[],"[{""score"": ""8.3"", ""version"": ""CVSS 3.1"", ""severity"": ""HIGH"", ""vector"": ""CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:L/I:L/A:L"", ""exploitability_score"": ""3.9"", ""impact_score"": ""3.7"", ""source_identifier"": ""cve@mitre.org""}]",https://cvefeed.io/vuln/detail/CVE-2025-62650
+CVE-2025-62649,RBI Restaurant Brands International Client-Side Authentication Bypass,"The following products are affected byCVE-2025-62649vulnerability.
+                                            Even ifcvefeed.iois aware of the exact versions of the
+                                            products
+                                            that
+                                            are
+                                            affected, the information is not represented in the table below.","Oct. 17, 2025, 9:15 p.m.","Oct. 18, 2025, 1:15 a.m.",Yes !,cve@mitre.org,Authentication,[],"[{""score"": ""5.8"", ""version"": ""CVSS 3.1"", ""severity"": ""MEDIUM"", ""vector"": ""CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:N/I:L/A:N"", ""exploitability_score"": ""3.9"", ""impact_score"": ""1.4"", ""source_identifier"": ""cve@mitre.org""}]",https://cvefeed.io/vuln/detail/CVE-2025-62649
+CVE-2025-62648,TimsDotCom Drive Thru Audio Volume Tampering Vulnerability,"The following products are affected byCVE-2025-62648vulnerability.
+                                            Even ifcvefeed.iois aware of the exact versions of the
+                                            products
+                                            that
+                                            are
+                                            affected, the information is not represented in the table below.","Oct. 17, 2025, 9:15 p.m.","Oct. 18, 2025, 1:15 a.m.",Yes !,cve@mitre.org,Denial of Service,[],"[{""score"": ""6.4"", ""version"": ""CVSS 3.1"", ""severity"": ""MEDIUM"", ""vector"": ""CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:C/C:L/I:N/A:L"", ""exploitability_score"": ""3.1"", ""impact_score"": ""2.7"", ""source_identifier"": ""cve@mitre.org""}]",https://cvefeed.io/vuln/detail/CVE-2025-62648
+CVE-2025-62647,RBI Restaurant Assistant JWT Authentication Bypass,"The following products are affected byCVE-2025-62647vulnerability.
+                                            Even ifcvefeed.iois aware of the exact versions of the
+                                            products
+                                            that
+                                            are
+                                            affected, the information is not represented in the table below.","Oct. 17, 2025, 9:15 p.m.","Oct. 18, 2025, 1:15 a.m.",Yes !,cve@mitre.org,Authentication,[],"[{""score"": ""5.8"", ""version"": ""CVSS 3.1"", ""severity"": ""MEDIUM"", ""vector"": ""CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:N/I:L/A:N"", ""exploitability_score"": ""3.9"", ""impact_score"": ""1.4"", ""source_identifier"": ""cve@mitre.org""}, {""score"": ""5.0"", ""version"": ""CVSS 3.1"", ""severity"": ""MEDIUM"", ""vector"": ""CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:C/C:N/I:L/A:N"", ""exploitability_score"": ""3.1"", ""impact_score"": ""1.4"", ""source_identifier"": ""cve@mitre.org""}]",https://cvefeed.io/vuln/detail/CVE-2025-62647
+CVE-2025-62646,RBI Drive Thru Audio Storage Information Disclosure Vulnerability,"The following products are affected byCVE-2025-62646vulnerability.
+                                            Even ifcvefeed.iois aware of the exact versions of the
+                                            products
+                                            that
+                                            are
+                                            affected, the information is not represented in the table below.","Oct. 17, 2025, 9:15 p.m.","Oct. 18, 2025, 1:15 a.m.",Yes !,cve@mitre.org,Information Disclosure,[],"[{""score"": ""5.0"", ""version"": ""CVSS 3.1"", ""severity"": ""MEDIUM"", ""vector"": ""CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:C/C:L/I:N/A:N"", ""exploitability_score"": ""3.1"", ""impact_score"": ""1.4"", ""source_identifier"": ""cve@mitre.org""}]",https://cvefeed.io/vuln/detail/CVE-2025-62646
+CVE-2025-62645,RBI Assistant Platform Privilege Escalation Vulnerability,"The following products are affected byCVE-2025-62645vulnerability.
+                                            Even ifcvefeed.iois aware of the exact versions of the
+                                            products
+                                            that
+                                            are
+                                            affected, the information is not represented in the table below.","Oct. 17, 2025, 9:15 p.m.","Oct. 18, 2025, 1:15 a.m.",Yes !,cve@mitre.org,Authorization,[],"[{""score"": ""9.9"", ""version"": ""CVSS 3.1"", ""severity"": ""CRITICAL"", ""vector"": ""CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:C/C:H/I:H/A:H"", ""exploitability_score"": ""3.1"", ""impact_score"": ""6.0"", ""source_identifier"": ""cve@mitre.org""}]",https://cvefeed.io/vuln/detail/CVE-2025-62645
+CVE-2025-62644,RBI Global Store Directory Information Disclosure Vulnerability,"The following products are affected byCVE-2025-62644vulnerability.
+                                            Even ifcvefeed.iois aware of the exact versions of the
+                                            products
+                                            that
+                                            are
+                                            affected, the information is not represented in the table below.","Oct. 17, 2025, 9:15 p.m.","Oct. 18, 2025, 1:15 a.m.",Yes !,cve@mitre.org,Information Disclosure,[],"[{""score"": ""5.0"", ""version"": ""CVSS 3.1"", ""severity"": ""MEDIUM"", ""vector"": ""CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:C/C:L/I:N/A:N"", ""exploitability_score"": ""3.1"", ""impact_score"": ""1.4"", ""source_identifier"": ""cve@mitre.org""}]",https://cvefeed.io/vuln/detail/CVE-2025-62644
+CVE-2025-62643,RBI Assistant Cleartext Password Transmission,"The following products are affected byCVE-2025-62643vulnerability.
+                                            Even ifcvefeed.iois aware of the exact versions of the
+                                            products
+                                            that
+                                            are
+                                            affected, the information is not represented in the table below.","Oct. 17, 2025, 9:15 p.m.","Oct. 18, 2025, 1:15 a.m.",No,cve@mitre.org,Cryptography,[],"[{""score"": ""3.4"", ""version"": ""CVSS 3.1"", ""severity"": ""LOW"", ""vector"": ""CVSS:3.1/AV:A/AC:H/PR:N/UI:N/S:C/C:L/I:N/A:N"", ""exploitability_score"": ""1.6"", ""impact_score"": ""1.4"", ""source_identifier"": ""cve@mitre.org""}]",https://cvefeed.io/vuln/detail/CVE-2025-62643

@@ -201,6 +201,15 @@ COMMENT ON TABLE gold.cvss_v3 IS 'Fait: Scores CVSS version 3.0/3.1 avec 8 métr
 COMMENT ON TABLE gold.cvss_v4 IS 'Fait: Scores CVSS version 4.0 avec 9 métriques de base';
 COMMENT ON TABLE gold.bridge_cve_products IS 'Bridge: Relation many-to-many CVE <-> Products';
 
+
+
+
+
+
+
+
+
+
 -- ================================================================
 -- STATISTIQUES INITIALES
 -- ================================================================
