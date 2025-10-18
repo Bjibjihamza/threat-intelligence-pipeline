@@ -22,7 +22,7 @@ from dateutil import parser
 from sqlalchemy.engine import Engine
 
 from database.connection import create_db_engine, get_schema_name
-from batch.load.load_silver_layer_m import load_silver_layer
+from stream.load.load_silver_layer_m import load_silver_layer
 
 # -------------------------------------------------------------------
 # Logging

@@ -1,8 +1,9 @@
+#!/usr/bin/env python3
 # =============================================================================
-# CVE SCRAPER WITH COMPLETE ETL PIPELINE
+# CVE SCRAPER WITH COMPLETE ETL PIPELINE (Bronze → Silver → Gold)
 # =============================================================================
-# Description: Scrape → Bronze → EDA → Silver (traite uniquement les CVE scrapés)
-# Location: src/batch/extract/stream/scrape_live_cvefeed_bronze.py
+# Description: Scrape → Bronze → EDA → Silver → Gold (Star Schema)
+# Location: src/batch/extract/stream/scrape_live_cvefeed_complete_pipeline.py
 # Author: Data Engineering Team
 # Date: 2025-10-18
 # =============================================================================
@@ -37,32 +38,34 @@ import logging
 import re
 import binascii
 from typing import List, Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pandas as pd
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
 # ============================================================================
-# IMPORT PIPELINE MODULES (Bronze + Silver + EDA)
+# IMPORT PIPELINE MODULES (Bronze + Silver + Gold)
 # ============================================================================
-from batch.load.load_bronze_layer import load_bronze_layer
-from batch.load.load_silver_layer_m import load_silver_layer
+from stream.load.load_bronze_layer import load_bronze_layer
+from stream.load.load_silver_layer_m import load_silver_layer
+from stream.load.load_gold_layer_m import load_gold_layer
 from database.connection import create_db_engine, get_schema_name
 
-# ⭐ IMPORTANT: Import EDA transformation functions
-from batch.transform.EDA_bronze_to_silver_m import (
+# ⭐ IMPORTANT: Import EDA + Gold transformation
+from stream.transform.EDA_bronze_to_silver_m import (
     perform_eda,
     clean_silver_data,
     create_silver_layer
 )
+from stream.transform.transformation_to_gold_m import transform_silver_to_gold
 
 # =============================================================================
 # LOGGING
 # =============================================================================
 LOGS_DIR = (PROJECT_ROOT / "logs") if PROJECT_ROOT else (SRC_ROOT / "logs")
 LOGS_DIR.mkdir(parents=True, exist_ok=True)
-LOG_FILE = LOGS_DIR / "cve_scraper_full_pipeline.log"
+LOG_FILE = LOGS_DIR / "cve_scraper_complete_pipeline.log"
 
 logging.basicConfig(
     level=logging.INFO,
@@ -126,7 +129,7 @@ class CVELinkExtractor:
     def extract_cve_links(self, search_url: str) -> List[Dict[str, str]]:
         """Extract CVE links from search page using Selenium."""
         logger.info("=" * 80)
-        logger.info("🔍 STEP 1/6: EXTRACTING CVE LINKS")
+        logger.info("🔍 STEP 1/8: EXTRACTING CVE LINKS")
         logger.info("=" * 80)
         logger.info(f"URL: {search_url}")
 
@@ -137,13 +140,10 @@ class CVELinkExtractor:
             logger.info("🚀 Loading search page...")
             driver.get(search_url)
 
-            # Augmenter le timeout et essayer plusieurs sélecteurs
-            wait = WebDriverWait(driver, 60)  # 60 secondes au lieu de 30
+            wait = WebDriverWait(driver, 60)
             
-            # Essayer plusieurs stratégies de détection
             logger.info("⏳ Waiting for page to load (max 60s)...")
             try:
-                # Stratégie 1: Attendre les résultats
                 wait.until(
                     EC.presence_of_element_located(
                         (By.CSS_SELECTOR, "#searchResults .row.align-items-start.mb-4")
@@ -151,12 +151,11 @@ class CVELinkExtractor:
                 )
             except:
                 logger.warning("⚠️  Timeout on main selector, trying fallback...")
-                # Stratégie 2: Attendre juste le conteneur
                 wait.until(
                     EC.presence_of_element_located((By.ID, "searchResults"))
                 )
             
-            time.sleep(3)  # Augmenter le délai de stabilisation
+            time.sleep(3)
 
             html_content = driver.page_source
             soup = BeautifulSoup(html_content, "html.parser")
@@ -172,7 +171,6 @@ class CVELinkExtractor:
 
             entries = search_results.find_all("div", class_="row align-items-start mb-4")
             
-            # Si aucun résultat, vérifier s'il y a un message "No results"
             if len(entries) == 0:
                 no_results = soup.find(text=re.compile(r"No (results|CVEs) found", re.I))
                 if no_results:
@@ -441,7 +439,7 @@ def load_scraped_cve_from_bronze(cve_ids: List[str], engine: Engine) -> pd.DataF
 
 
 # =============================================================================
-# COMPLETE SCRAPER WITH FULL ETL PIPELINE
+# COMPLETE SCRAPER WITH FULL ETL PIPELINE (Bronze → Silver → Gold)
 # =============================================================================
 class CompleteCVEScraper:
     def __init__(self):
@@ -457,11 +455,12 @@ class CompleteCVEScraper:
         output_csv: str = "cve_data_backup.csv",
     ) -> Dict[str, Any]:
         """
-        ⭐ COMPLETE ETL PIPELINE: Scrape → Bronze → EDA → Silver
+        ⭐ COMPLETE ETL PIPELINE: Scrape → Bronze → EDA → Silver → Gold
         Traite UNIQUEMENT les CVE scrapés (pas toute la DB)
+        Mode APPEND sur Silver et Gold (pas de TRUNCATE)
         """
         logger.info("=" * 80)
-        logger.info("🚀 COMPLETE CVE SCRAPING & ETL PIPELINE")
+        logger.info("🚀 COMPLETE CVE SCRAPING & ETL PIPELINE (Bronze → Silver → Gold)")
         logger.info("=" * 80)
         logger.info(f"⏰ Start time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         logger.info("=" * 80 + "\n")
@@ -476,6 +475,9 @@ class CompleteCVEScraper:
             'bronze_inserted': 0,
             'bronze_skipped': 0,
             'silver_processed': 0,
+            'silver_inserted': 0,
+            'silver_skipped': 0,
+            'gold_processed': 0,
             'failed': 0,
             'success': False
         }
@@ -498,7 +500,7 @@ class CompleteCVEScraper:
             # STEP 2: Check existing CVEs
             # ================================================================
             logger.info("=" * 80)
-            logger.info("🔎 STEP 2/6: CHECKING EXISTING CVEs")
+            logger.info("🔎 STEP 2/8: CHECKING EXISTING CVEs")
             logger.info("=" * 80)
             
             with engine.connect() as conn:
@@ -521,7 +523,7 @@ class CompleteCVEScraper:
             # STEP 3: Scrape CVE details
             # ================================================================
             logger.info("=" * 80)
-            logger.info("📝 STEP 3/6: SCRAPING CVE DETAILS")
+            logger.info("📝 STEP 3/8: SCRAPING CVE DETAILS")
             logger.info("=" * 80)
             logger.info(f"Total CVEs to scrape: {len(to_scrape)}")
             logger.info(f"Delay: {delay}s")
@@ -562,7 +564,7 @@ class CompleteCVEScraper:
             # STEP 4: Load to Bronze
             # ================================================================
             logger.info("\n" + "=" * 80)
-            logger.info("📥 STEP 4/6: LOADING TO BRONZE LAYER")
+            logger.info("📥 STEP 4/8: LOADING TO BRONZE LAYER")
             logger.info("=" * 80)
             
             bronze_stats = load_bronze_layer(scraped_cve_data, engine)
@@ -573,13 +575,12 @@ class CompleteCVEScraper:
                        f"{bronze_stats['skipped']} skipped\n")
 
             # ================================================================
-            # ⭐ STEP 5: EDA & CLEANING (scraped CVEs only)
+            # STEP 5: EDA & CLEANING (scraped CVEs only)
             # ================================================================
             logger.info("=" * 80)
-            logger.info("🔍 STEP 5/6: EDA & CLEANING (SCRAPED CVEs ONLY)")
+            logger.info("🔍 STEP 5/8: EDA & CLEANING (SCRAPED CVEs ONLY)")
             logger.info("=" * 80)
             
-            # Load ONLY scraped CVEs from Bronze
             df_scraped = load_scraped_cve_from_bronze(scraped_cve_ids, engine)
             
             if df_scraped.empty:
@@ -588,11 +589,9 @@ class CompleteCVEScraper:
             
             logger.info(f"📊 Processing {len(df_scraped)} scraped CVE(s)\n")
             
-            # Run EDA
             logger.info("🔬 Running EDA on scraped data...")
             df_with_eda = perform_eda(df_scraped)
             
-            # Clean data
             logger.info("\n🧹 Cleaning scraped data...")
             df_cleaned = clean_silver_data(df_with_eda)
             
@@ -600,22 +599,46 @@ class CompleteCVEScraper:
                 logger.error("❌ No valid data after cleaning!")
                 return pipeline_stats
             
-            # Create Silver format
             logger.info("\n🏗️  Creating silver format...")
             silver_df = create_silver_layer(df_cleaned)
             pipeline_stats['silver_processed'] = len(silver_df)
 
             # ================================================================
-            # ⭐ STEP 6: Load to Silver (APPEND mode)
+            # STEP 6: Load to Silver (APPEND mode)
             # ================================================================
             logger.info("\n" + "=" * 80)
-            logger.info("💾 STEP 6/6: LOADING TO SILVER LAYER (APPEND)")
+            logger.info("💾 STEP 6/8: LOADING TO SILVER LAYER (APPEND MODE)")
             logger.info("=" * 80)
             
             tables = {"cve_cleaned": silver_df}
             silver_success = load_silver_layer(tables, engine, if_exists='append')
             
-            pipeline_stats['success'] = silver_success
+            if not silver_success:
+                logger.error("❌ Silver loading failed!")
+                return pipeline_stats
+
+            # ================================================================
+            # ⭐ STEP 7: Transform Silver → Gold (APPEND mode)
+            # ================================================================
+            logger.info("\n" + "=" * 80)
+            logger.info("🔄 STEP 7/8: TRANSFORMING TO GOLD LAYER (APPEND MODE)")
+            logger.info("=" * 80)
+            
+            logger.info("🔄 Transforming scraped CVEs to Gold format...")
+            gold_tables = transform_silver_to_gold(silver_df)
+            
+            pipeline_stats['gold_processed'] = len(gold_tables.get('dim_cve', pd.DataFrame()))
+
+            # ================================================================
+            # ⭐ STEP 8: Load to Gold (APPEND mode)
+            # ================================================================
+            logger.info("\n" + "=" * 80)
+            logger.info("💾 STEP 8/8: LOADING TO GOLD LAYER (APPEND MODE)")
+            logger.info("=" * 80)
+            
+            gold_success = load_gold_layer(gold_tables, engine, if_exists='append')
+            
+            pipeline_stats['success'] = gold_success
 
             # ================================================================
             # CSV Backup (optional)
@@ -630,7 +653,7 @@ class CompleteCVEScraper:
             # Final Summary
             # ================================================================
             logger.info("\n" + "=" * 80)
-            logger.info("🎉 COMPLETE ETL PIPELINE FINISHED")
+            logger.info("🎉 COMPLETE ETL PIPELINE FINISHED (Bronze → Silver → Gold)")
             logger.info("=" * 80)
             logger.info(f"⏰ End time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
             logger.info("=" * 80)
@@ -642,6 +665,7 @@ class CompleteCVEScraper:
             logger.info(f"   📥 Bronze inserted:        {pipeline_stats['bronze_inserted']}")
             logger.info(f"   ⭕ Bronze skipped:         {pipeline_stats['bronze_skipped']}")
             logger.info(f"   💎 Silver processed:       {pipeline_stats['silver_processed']}")
+            logger.info(f"   🌟 Gold processed:         {pipeline_stats['gold_processed']}")
             logger.info(f"   ❌ Failed:                 {pipeline_stats['failed']}")
             logger.info(f"   ✨ Pipeline success:       {pipeline_stats['success']}")
             logger.info("=" * 80)
@@ -692,24 +716,20 @@ class CompleteCVEScraper:
 # =============================================================================
 def main():
     """Main entry point."""
-    # ⚠️ IMPORTANT: Vérifier que la date est correcte !
-    # La date dans l'URL doit correspondre à des CVE existants
-    
     from datetime import datetime, timedelta
     
-    # Option 1: Date d'aujourd'hui (peut ne pas avoir de CVE)
+    # ⚠️ IMPORTANT: Choisir la date correcte
     today = datetime.now()
     today_str = today.strftime("%Y-%m-%d")
     
-    # Option 2: Hier (plus de chances d'avoir des CVE)
     yesterday = today - timedelta(days=1)
     yesterday_str = yesterday.strftime("%Y-%m-%d")
     
-    # Option 3: Date fixe avec CVE connus (2025-10-16)
+    # Option 3: Date fixe avec CVE connus
     fixed_date = "2025-10-16"
     
     # ⭐ Choisir la date à utiliser
-    target_date = fixed_date  # Changez ici selon vos besoins
+    target_date = yesterday_str  # Changez selon vos besoins
     
     logger.info(f"🎯 Target date: {target_date}")
     
