@@ -97,3 +97,117 @@
 2025-10-18 00:51:41,845 - INFO - 🎉 SILVER LAYER LOAD COMPLETED SUCCESSFULLY
 2025-10-18 00:51:41,845 - INFO - ========================================================================
 2025-10-18 00:51:41,846 - INFO - ✅ Test passed! Run again to see the skip behavior.
+2025-10-18 11:31:45,566 - INFO - ========================================================================
+2025-10-18 11:31:45,567 - INFO - 🚀 BRONZE ➜ SILVER PIPELINE (EDA + CLEANING)
+2025-10-18 11:31:45,567 - INFO - ========================================================================
+2025-10-18 11:31:45,636 - INFO - ✅ Connected to PostgreSQL at localhost:5432/tip
+2025-10-18 11:31:45,636 - INFO - ========================================================================
+2025-10-18 11:31:45,636 - INFO - 📥 LOADING BRONZE DATA
+2025-10-18 11:31:45,636 - INFO - ========================================================================
+2025-10-18 11:31:49,203 - INFO - ✅ Loaded 122,890 rows from bronze layer
+2025-10-18 11:31:49,203 - INFO - 📊 Columns: ['cve_id', 'title', 'description', 'published_date', 'last_modified', 'remotely_exploit', 'source_identifier', 'category', 'affected_products', 'cvss_scores', 'url', 'loaded_at']
+2025-10-18 11:31:49,203 - INFO - ========================================================================
+2025-10-18 11:31:49,203 - INFO - 🔍 EXPLORATORY DATA ANALYSIS
+2025-10-18 11:31:49,203 - INFO - ========================================================================
+2025-10-18 11:31:49,204 - INFO - 
+📊 OVERVIEW:
+2025-10-18 11:31:49,204 - INFO -    Total rows: 122,890
+2025-10-18 11:31:49,204 - INFO -    Total columns: 12
+2025-10-18 11:31:49,476 - INFO -    Memory usage: 151.42 MB
+2025-10-18 11:31:49,477 - INFO - 
+🔎 MISSING VALUES ANALYSIS:
+2025-10-18 11:31:49,579 - INFO -    remotely_exploit: 72,116.0 (58.68%)
+2025-10-18 11:31:49,580 - INFO -    category: 26,808.0 (21.81%)
+2025-10-18 11:31:49,580 - INFO -    title: 165.0 (0.13%)
+2025-10-18 11:31:49,580 - INFO - 
+🔄 DUPLICATES ANALYSIS:
+2025-10-18 11:31:49,604 - INFO -    Duplicate CVE IDs: 0
+2025-10-18 11:31:49,604 - INFO - 
+📅 DATE ANALYSIS:
+2025-10-18 11:32:00,710 - INFO -    Valid published dates: 122,890 / 122,890
+2025-10-18 11:32:00,717 - INFO -    Date range: 1988-10-01 04:00:00 to 2025-10-16 21:15:00
+2025-10-18 11:32:00,717 - INFO - 
+🎯 CVSS SCORES ANALYSIS:
+2025-10-18 11:32:00,780 - INFO -    CVEs with CVSS scores: 114,083 (92.83%)
+2025-10-18 11:32:05,654 - INFO -    CVSS v2 entries: 79,985
+2025-10-18 11:32:05,654 - INFO -    CVSS v3 entries: 95,012
+2025-10-18 11:32:05,654 - INFO -    CVSS v4 entries: 9,400
+2025-10-18 11:32:05,655 - INFO - 
+🏢 AFFECTED PRODUCTS ANALYSIS:
+2025-10-18 11:32:05,716 - INFO -    CVEs with affected products: 107,494 (87.47%)
+2025-10-18 11:32:05,716 - INFO - 
+📑 CATEGORY ANALYSIS:
+2025-10-18 11:32:05,726 - INFO -    Total categories: 16
+2025-10-18 11:32:05,726 - INFO -    Top 5 categories:
+2025-10-18 11:32:05,726 - INFO -       - : 66,758 (54.32%)
+2025-10-18 11:32:05,726 - INFO -       - Cross-Site Scripting: 5,380 (4.38%)
+2025-10-18 11:32:05,727 - INFO -       - Memory Corruption: 4,656 (3.79%)
+2025-10-18 11:32:05,727 - INFO -       - Injection: 4,342 (3.53%)
+2025-10-18 11:32:05,727 - INFO -       - Authorization: 3,110 (2.53%)
+2025-10-18 11:32:05,727 - INFO - 
+========================================================================
+2025-10-18 11:32:05,755 - INFO - ========================================================================
+2025-10-18 11:32:05,756 - INFO - 🧹 DATA CLEANING
+2025-10-18 11:32:05,756 - INFO - ========================================================================
+2025-10-18 11:32:05,785 - INFO - 
+🔄 Removing duplicates...
+2025-10-18 11:32:05,853 - INFO - 
+📅 Cleaning dates...
+2025-10-18 11:32:27,272 - INFO - 
+🎯 Filtering CVEs without CVSS scores...
+2025-10-18 11:32:27,471 - INFO -    ⚠️  Removed 8,807 rows without CVSS scores
+2025-10-18 11:32:27,471 - INFO - 
+🤖 ADDING PREDICTED CATEGORY COLUMN...
+2025-10-18 11:32:29,459 - INFO -    ✅ Column 'predicted_category' added
+2025-10-18 11:32:29,459 - INFO -    📊 Predictions made: 0 / 114,083
+2025-10-18 11:32:29,459 - INFO -    ℹ️  Note: Prediction model not yet trained (all values are None)
+2025-10-18 11:32:29,460 - INFO - 
+✅ CLEANING SUMMARY:
+2025-10-18 11:32:29,460 - INFO -    Initial rows: 122,890
+2025-10-18 11:32:29,460 - INFO -    Final rows: 114,083
+2025-10-18 11:32:29,460 - INFO -    Total removed: 8,807
+2025-10-18 11:32:29,460 - INFO -    Data quality: 92.83%
+2025-10-18 11:32:29,460 - INFO - 
+========================================================================
+2025-10-18 11:32:29,460 - INFO - ========================================================================
+2025-10-18 11:32:29,461 - INFO - 🏗️  CREATING SILVER LAYER
+2025-10-18 11:32:29,461 - INFO - ========================================================================
+2025-10-18 11:32:29,617 - INFO - ✅ Silver layer created with 114,083 rows
+2025-10-18 11:32:29,617 - INFO - 📊 Columns: ['cve_id', 'title', 'description', 'category', 'predicted_category', 'published_date', 'last_modified', 'loaded_at', 'remotely_exploit', 'source_identifier', 'affected_products', 'cvss_scores', 'url']
+2025-10-18 11:32:29,618 - INFO - 
+💾 Loading to Silver layer...
+2025-10-18 11:32:29,618 - INFO - ========================================================================
+2025-10-18 11:32:29,618 - INFO - 🚀 SILVER LAYER LOAD PIPELINE
+2025-10-18 11:32:29,618 - INFO - ========================================================================
+2025-10-18 11:32:29,619 - INFO - 🔎 Verifying silver schema 'silver' and table 'cve_cleaned'...
+2025-10-18 11:32:29,637 - INFO - ✅ Silver schema validated
+2025-10-18 11:32:29,637 - INFO - ========================================================================
+2025-10-18 11:32:29,637 - INFO - 💾 LOADING TO SILVER: silver.cve_cleaned
+2025-10-18 11:32:29,638 - INFO -    Mode: replace
+2025-10-18 11:32:29,638 - INFO - ========================================================================
+2025-10-18 11:32:29,638 - INFO - 🛠️ Preparing dataframe for silver layer...
+2025-10-18 11:32:31,185 - INFO - 🤖 Prediction stats: 0/114,083 (0.0%) with predictions
+2025-10-18 11:32:31,186 - INFO - ✅ Prepared 114,083 rows for silver layer
+2025-10-18 11:32:31,186 - INFO - 📋 Columns: ['cve_id', 'title', 'description', 'category', 'predicted_category', 'published_date', 'last_modified', 'loaded_at', 'remotely_exploit', 'source_identifier', 'affected_products', 'cvss_scores', 'url']
+2025-10-18 11:32:31,186 - INFO - 📊 DataFrame shape: (114083, 13)
+2025-10-18 11:32:31,186 - INFO - 📋 Columns to insert: ['cve_id', 'title', 'description', 'category', 'predicted_category', 'published_date', 'last_modified', 'loaded_at', 'remotely_exploit', 'source_identifier', 'affected_products', 'cvss_scores', 'url']
+2025-10-18 11:32:31,187 - INFO - 🗑️  Truncating table silver.cve_cleaned...
+2025-10-18 11:32:31,218 - INFO - ✅ Table truncated
+2025-10-18 11:32:31,219 - INFO - 📤 Inserting 114,083 rows...
+2025-10-18 11:33:07,271 - INFO - ========================================================================
+2025-10-18 11:33:07,271 - INFO - 📊 LOAD STATISTICS
+2025-10-18 11:33:07,272 - INFO - ========================================================================
+2025-10-18 11:33:07,272 - INFO - ✅ Rows inserted: 114,083
+2025-10-18 11:33:07,272 - INFO - 🧮 Total rows in cve_cleaned: 114,083
+2025-10-18 11:33:07,272 - INFO - 🤖 CVEs with predictions: 0 (0.0%)
+2025-10-18 11:33:07,272 - INFO - ⏱️  Duration: 37.63s
+2025-10-18 11:33:07,273 - INFO - ⚡ Speed: 3031 rows/sec
+2025-10-18 11:33:07,273 - INFO - ========================================================================
+2025-10-18 11:33:08,437 - INFO - 
+========================================================================
+2025-10-18 11:33:08,437 - INFO - 🎉 SILVER LAYER LOAD COMPLETED SUCCESSFULLY
+2025-10-18 11:33:08,437 - INFO - ========================================================================
+2025-10-18 11:33:08,437 - INFO - 
+========================================================================
+2025-10-18 11:33:08,437 - INFO - 🎉 PIPELINE COMPLETED SUCCESSFULLY
+2025-10-18 11:33:08,438 - INFO - ========================================================================
