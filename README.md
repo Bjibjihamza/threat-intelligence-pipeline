@@ -458,3 +458,8 @@ Contact: [Your Email]
 
 **Last Updated:** October 14, 2025  
 **Pipeline Version:** 1.0.0
+
+
+
+
+donc inspired by this article ; https://www.arxiv.org/pdf/2509.20943 qui parle de la contruction d'une dataset from telegram chanles , je fait l'intiative de traiter vraiment cet approche so j'ai tester un pipline etl data whearhouse bi sur une channel telegram : cve monitor qui donne des alerts des cve feed , so after that i discover the website cvefeed.io qui donne feed cve afec leur details 

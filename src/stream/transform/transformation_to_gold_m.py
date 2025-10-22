@@ -20,7 +20,7 @@ import pandas as pd
 from sqlalchemy.engine import Engine
 
 from database.connection import create_db_engine, get_schema_name
-from stream.load.load_gold_layer_m import load_gold_layer
+from src.stream.load.load_gold_layer import load_gold_layer
 from utils.cvss_parser import CVSSVectorParser
 
 # -------------------------------------------------------------------

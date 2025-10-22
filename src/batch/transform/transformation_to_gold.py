@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
-SILVER ➜ GOLD TRANSFORMATION (VERSION 2)
-- Modélisation en étoile (Star Schema)
-- Extraction des métriques CVSS depuis les vecteurs
-- Dimensions: dim_cve, dim_vendor, dim_products, dim_cvss_source (chargée côté loader)
-- Faits: cvss_v2, cvss_v3, cvss_v4
-- Bridge: bridge_cve_products
+SILVER ➜ GOLD TRANSFORMATION (V3, fixed CVSS parsing)
+- Star schema build for Gold
+- Works with Silver columns (no title/description; single 'vulnarbilit' category)
+- Robust CVSS JSON parsing (handles version '2.0'/'3.1'/'4.0' and flat keys)
 """
 
 from pathlib import Path
@@ -47,7 +46,6 @@ pd.set_option("display.float_format", "{:.2f}".format)
 # Helpers
 # -------------------------------------------------------------------
 def _safe_json_load(x):
-    """Charge du JSON de manière sécurisée"""
     try:
         if isinstance(x, str):
             s = x.strip()
@@ -60,7 +58,6 @@ def _safe_json_load(x):
     return None
 
 def _is_empty_json_like(x) -> bool:
-    """True si valeur vide/None/[]"""
     try:
         if x is None:
             return True
@@ -103,28 +100,27 @@ def load_silver_data(engine: Engine, limit: Optional[int] = None) -> pd.DataFram
         query = f"SELECT * FROM {silver_schema}.cve_cleaned;"
 
     df = pd.read_sql(query, engine)
-    logger.info(f"✅ Loaded {len(df):,} rows from silver layer")
+    logger.info(f"✅ Loaded {len(df):,} rows from silver")
     return df
 
 # -------------------------------------------------------------------
-# DIMENSION: dim_cve (inclut predicted_category)
+# DIMENSION: dim_cve (no title/desc; uses 'vulnarbilit')
 # -------------------------------------------------------------------
 def create_dim_cve(df: pd.DataFrame) -> pd.DataFrame:
-    logger.info("🔨 Building dimension: dim_cve...")
+    logger.info("🔨 Building dimension: dim_cve (vulnarbilit)...")
 
+    # Ensure columns exist (Gold v3 expects: cve_id, vulnarbilit, published_date, last_modified, loaded_at, remotely_exploit, source_identifier)
     needed = [
-        'cve_id','title','description','category','predicted_category',
-        'published_date','last_modified','loaded_at','remotely_exploit','source_identifier'
+        'cve_id','vulnarbilit','published_date','last_modified',
+        'loaded_at','remotely_exploit','source_identifier'
     ]
+    base = df.copy()
     for col in needed:
-        if col not in df.columns:
-            df[col] = None
+        if col not in base.columns:
+            base[col] = None
 
-    dim_cve = df.groupby('cve_id', as_index=False).agg({
-        'title': 'first',
-        'description': 'first',
-        'category': 'first',
-        'predicted_category': 'first',
+    dim_cve = base.groupby('cve_id', as_index=False).agg({
+        'vulnarbilit': 'first',
         'published_date': 'first',
         'last_modified': 'max',
         'loaded_at': 'max',
@@ -132,39 +128,91 @@ def create_dim_cve(df: pd.DataFrame) -> pd.DataFrame:
         'source_identifier': 'first'
     })
 
-    # null safety & types to match DB constraints
+    # Types & null safety
     dim_cve['cve_id'] = dim_cve['cve_id'].astype(str).str.slice(0, 20)
-    dim_cve['title'] = dim_cve['title'].fillna('Unknown')
     for col in ['published_date','last_modified','loaded_at']:
         dim_cve[col] = pd.to_datetime(dim_cve[col], errors='coerce')
     now = pd.Timestamp.utcnow().tz_localize(None)
     dim_cve['published_date'] = dim_cve['published_date'].fillna(now)
     dim_cve['last_modified']  = dim_cve['last_modified'].fillna(dim_cve['published_date'])
     dim_cve['loaded_at']      = dim_cve['loaded_at'].fillna(now)
+
+    if 'remotely_exploit' in dim_cve.columns:
+        dim_cve['remotely_exploit'] = dim_cve['remotely_exploit'].astype('boolean')
+
     dim_cve['source_identifier'] = dim_cve['source_identifier'].map(lambda x: _norm_text(x) or None)
 
-    logger.info(f"✅ dim_cve: {len(dim_cve):,} unique CVEs")
+    logger.info(f"✅ dim_cve: {len(dim_cve):,} rows")
     return dim_cve
 
 # -------------------------------------------------------------------
-# CVSS Version Info
+# CVSS normalization helpers (NEW)
 # -------------------------------------------------------------------
-def get_version_info(version_str: Optional[str]) -> Tuple[Optional[str], Optional[str]]:
-    if version_str == "CVSS 2.0": return "v2", "CVSS 2.0"
-    if version_str == "CVSS 3.0": return "v3", "CVSS 3.0"
-    if version_str == "CVSS 3.1": return "v3", "CVSS 3.1"
-    if version_str == "CVSS 4.0": return "v4", "CVSS 4.0"
+def _first_key(d: dict, *candidates):
+    for k in candidates:
+        if isinstance(d, dict) and k in d and d[k] not in (None, "", [], {}):
+            return d[k]
+    return None
+
+def _unwrap_cvss_entry(entry: dict):
+    """
+    Normalize any CVSS entry to a flat dict with:
+    version, vector, score, severity, exploitability_score, impact_score, source
+    Supports your current format (version '2.0', flat keys).
+    """
+    if not isinstance(entry, dict):
+        return None
+
+    core = entry.get('cvssData') if isinstance(entry.get('cvssData'), dict) else entry
+
+    version = _first_key(core, 'version', 'cvss_version', 'cvssVersion')
+    # normalize variants
+    if version in ('3.1', '3.0'): version = f"CVSS {version}"
+    if version == '2.0':           version = 'CVSS 2.0'
+    if version == '4.0':           version = 'CVSS 4.0'
+
+    vector = _first_key(core, 'vector', 'vectorString', 'vector_string', 'cvss_vector')
+    score = _first_key(core, 'score', 'baseScore', 'base_score')
+    severity = _first_key(core, 'severity', 'baseSeverity', 'base_severity')
+
+    exploitability = _first_key(entry, 'exploitability_score', 'exploitabilityScore', 'exploitability')
+    impact        = _first_key(entry, 'impact_score', 'impactScore', 'impact')
+
+    source = _first_key(entry, 'source_identifier', 'source', 'sourceRef') \
+             or _first_key(core, 'source_identifier', 'source') \
+             or 'unknown'
+
+    return {
+        'version': version,
+        'vector': vector,
+        'score': score,
+        'severity': severity,
+        'exploitability_score': exploitability,
+        'impact_score': impact,
+        'source': source
+    }
+
+def _cvss_version_key(version_label: Optional[str]) -> Tuple[Optional[str], Optional[str]]:
+    if not version_label:
+        return None, None
+    v = version_label.strip().upper()
+    if v in ('CVSS 2.0', '2.0', 'V2'): return 'v2', 'CVSS 2.0'
+    if v in ('CVSS 3.0', '3.0'):       return 'v3', 'CVSS 3.0'
+    if v in ('CVSS 3.1', '3.1'):       return 'v3', 'CVSS 3.1'
+    if v in ('CVSS 4.0', '4.0', 'V4'): return 'v4', 'CVSS 4.0'
     return None, None
 
 # -------------------------------------------------------------------
-# FACTS: cvss_v2, cvss_v3, cvss_v4
+# FACTS: cvss_v2, cvss_v3, cvss_v4 (FIXED)
 # -------------------------------------------------------------------
 def create_cvss_facts(df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    logger.info("🔨 Building CVSS facts with vector extraction...")
+    logger.info("🔨 Building CVSS facts...")
 
     rec_v2: List[Dict[str, Any]] = []
     rec_v3: List[Dict[str, Any]] = []
     rec_v4: List[Dict[str, Any]] = []
+
+    skipped_no_scores = skipped_no_version = skipped_no_vector = 0
 
     for _, row in df.iterrows():
         cve_id = row.get('cve_id')
@@ -173,6 +221,7 @@ def create_cvss_facts(df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame, pd.
 
         scores = _safe_json_load(row.get('cvss_scores'))
         if _is_empty_json_like(scores):
+            skipped_no_scores += 1
             continue
         if isinstance(scores, dict):
             scores = [scores]
@@ -181,20 +230,25 @@ def create_cvss_facts(df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame, pd.
             if not isinstance(score_entry, dict):
                 continue
 
-            version = score_entry.get('version')
-            vkey, vlabel = get_version_info(version)
-            if not vkey:
+            norm = _unwrap_cvss_entry(score_entry)
+            if not norm:
                 continue
 
-            source = _norm_text(score_entry.get('source_identifier') or score_entry.get('source'), 100) or 'unknown'
-            vector = _norm_text(score_entry.get('vector'))
-            if not vector:
-                continue  # NOT NULL in schema
+            vkey, vlabel = _cvss_version_key(norm.get('version'))
+            if not vkey:
+                skipped_no_version += 1
+                continue
 
-            score = score_entry.get('score')
-            severity = score_entry.get('severity')
-            exploitability = score_entry.get('exploitability_score')
-            impact = score_entry.get('impact_score')
+            vector = norm.get('vector')
+            if not vector:
+                skipped_no_vector += 1
+                continue
+
+            source = (_norm_text(norm.get('source')) or 'unknown')[:100]
+            score  = norm.get('score')
+            severity = norm.get('severity')
+            exploit = norm.get('exploitability_score')
+            impact  = norm.get('impact_score')
 
             if vkey == 'v2':
                 metrics = CVSSVectorParser.parse_vector(vector, 'v2') or {}
@@ -210,7 +264,7 @@ def create_cvss_facts(df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame, pd.
                     'cvss_v2_c': metrics.get('cvss_v2_c'),
                     'cvss_v2_i': metrics.get('cvss_v2_i'),
                     'cvss_v2_a': metrics.get('cvss_v2_a'),
-                    'cvss_exploitability_score': exploitability,
+                    'cvss_exploitability_score': exploit,
                     'cvss_impact_score': impact,
                 })
             elif vkey == 'v3':
@@ -230,7 +284,7 @@ def create_cvss_facts(df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame, pd.
                     'cvss_v3_base_c': metrics.get('cvss_v3_base_c'),
                     'cvss_v3_base_i': metrics.get('cvss_v3_base_i'),
                     'cvss_v3_base_a': metrics.get('cvss_v3_base_a'),
-                    'cvss_exploitability_score': exploitability,
+                    'cvss_exploitability_score': exploit,
                     'cvss_impact_score': impact,
                 })
             elif vkey == 'v4':
@@ -264,13 +318,13 @@ def create_cvss_facts(df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame, pd.
                     d[col] = pd.to_numeric(d[col], errors='coerce')
 
     logger.info("✅ CVSS Facts:")
-    logger.info(f"   - cvss_v2: {len(cvss_v2):,} records")
+    logger.info(f"   - cvss_v2: {len(cvss_v2):,} records | skipped_no_scores={skipped_no_scores:,} no_version={skipped_no_version:,} no_vector={skipped_no_vector:,}")
     logger.info(f"   - cvss_v3: {len(cvss_v3):,} records")
     logger.info(f"   - cvss_v4: {len(cvss_v4):,} records")
     return cvss_v2, cvss_v3, cvss_v4
 
 # -------------------------------------------------------------------
-# DIMENSIONS: dim_vendor + dim_products + BRIDGE: bridge_cve_products
+# DIMENSIONS: dim_vendor + dim_products + BRIDGE
 # -------------------------------------------------------------------
 def create_vendors_products_and_bridge(df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     logger.info("🔨 Building dim_vendor + dim_products + bridge_cve_products...")
@@ -352,9 +406,7 @@ def create_vendors_products_and_bridge(df: pd.DataFrame) -> Tuple[pd.DataFrame, 
         dim_vendor = pd.DataFrame(columns=['vendor_id','vendor_name','total_products','total_cves','first_cve_date','last_cve_date'])
         dim_products = pd.DataFrame(columns=['product_id','vendor_id','product_name','total_cves','first_cve_date','last_cve_date'])
         bridge = pd.DataFrame(columns=['cve_id','product_id'])
-        logger.info("✅ dim_vendor: 0 vendors")
-        logger.info("✅ dim_products: 0 products")
-        logger.info("✅ bridge_cve_products: 0 records")
+        logger.info("✅ dim_vendor: 0 vendors | dim_products: 0 products | bridge: 0")
         return dim_vendor, dim_products, bridge
 
     # finalize vendors
@@ -389,9 +441,9 @@ def create_vendors_products_and_bridge(df: pd.DataFrame) -> Tuple[pd.DataFrame, 
         for i, (_, d) in enumerate(products_dict.items(), start=1)
     ])
 
-    # product lookup: (vendor_lower, product_lower) -> product_id
+    # product lookup: (vendor_id, product_lower) -> product_id
     product_lookup = {
-        (r['vendor_id'], r['product_name'].lower()): int(r['product_id'])
+        (int(r['vendor_id']), r['product_name'].lower()): int(r['product_id'])
         for _, r in dim_products.iterrows()
         if pd.notna(r['vendor_id'])
     }
@@ -404,17 +456,15 @@ def create_vendors_products_and_bridge(df: pd.DataFrame) -> Tuple[pd.DataFrame, 
     )
     bridge = bridge_df[['cve_id','product_id']].dropna().drop_duplicates().reset_index(drop=True)
 
-    logger.info(f"✅ dim_vendor: {len(dim_vendor):,} unique vendors")
-    logger.info(f"✅ dim_products: {len(dim_products):,} unique products")
-    logger.info(f"✅ bridge_cve_products: {len(bridge):,} CVE-Product relationships")
+    logger.info(f"✅ dim_vendor:{len(dim_vendor):,}  dim_products:{len(dim_products):,}  bridge:{len(bridge):,}")
     return dim_vendor, dim_products, bridge
 
 # -------------------------------------------------------------------
-# Main Transformation Pipeline
+# Main Transformation
 # -------------------------------------------------------------------
 def transform_silver_to_gold(df_silver: pd.DataFrame) -> Dict[str, pd.DataFrame]:
     logger.info("=" * 72)
-    logger.info("🚀 SILVER ➜ GOLD TRANSFORMATION (STAR SCHEMA V2)")
+    logger.info("🚀 SILVER ➜ GOLD TRANSFORMATION (V3)")
     logger.info("=" * 72)
 
     # 1. Dimensions
@@ -424,7 +474,7 @@ def transform_silver_to_gold(df_silver: pd.DataFrame) -> Dict[str, pd.DataFrame]
     # 2. Facts (CVSS)
     cvss_v2, cvss_v3, cvss_v4 = create_cvss_facts(df_silver)
 
-    # 3. Tables package
+    # 3. Package
     gold_tables = {
         'dim_cve': dim_cve,
         'dim_vendor': dim_vendor,
@@ -455,11 +505,13 @@ def transform_silver_to_gold(df_silver: pd.DataFrame) -> Dict[str, pd.DataFrame]
 # -------------------------------------------------------------------
 def run_silver_to_gold(limit: Optional[int] = None, if_exists: str = 'replace') -> bool:
     logger.info("=" * 72)
-    logger.info("🚀 SILVER ➜ GOLD PIPELINE (VERSION 2)")
+    logger.info("🚀 SILVER ➜ GOLD PIPELINE (V3)")
     logger.info("=" * 72)
 
     try:
         engine = create_db_engine()
+        logger.info(f"✅ Connected to PostgreSQL at localhost:5432/{engine.url.database}")
+
         df_silver = load_silver_data(engine, limit=limit)
         if df_silver.empty:
             logger.warning("⚠️  No data in silver layer!")
@@ -471,9 +523,7 @@ def run_silver_to_gold(limit: Optional[int] = None, if_exists: str = 'replace') 
         success = load_gold_layer(gold_tables, engine, if_exists=if_exists)
 
         if success:
-            logger.info("\n" + "=" * 72)
-            logger.info("🎉 PIPELINE COMPLETED SUCCESSFULLY")
-            logger.info("=" * 72)
+            logger.info("\n🎉 GOLD load done.")
         else:
             logger.error("\n❌ Pipeline failed during load")
 
@@ -488,9 +538,9 @@ def run_silver_to_gold(limit: Optional[int] = None, if_exists: str = 'replace') 
 # -------------------------------------------------------------------
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Silver ➜ Gold: Star Schema Transformation Pipeline (V2)"
+        description="Silver ➜ Gold: Star Schema Transformation Pipeline (V3)"
     )
-    parser.add_argument('--limit', type=int, default=None, help='Limit number of rows to process (for testing)')
+    parser.add_argument('--limit', type=int, default=None, help='Limit number of rows to process (testing)')
     parser.add_argument('--if-exists', choices=['append', 'replace'], default='replace', help='Gold load mode')
     return parser.parse_args()
 

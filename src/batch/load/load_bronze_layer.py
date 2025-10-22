@@ -1,17 +1,7 @@
+# batch/load/load_bronze_layer.py
 # ============================================================================
-# LOAD BRONZE LAYER - Direct Scraper to PostgreSQL (no staging)
+# LOAD BRONZE LAYER - Direct → raw.cve_details (NO title/description/url)
 # ============================================================================
-# Description : Load raw CVE data directly into raw.cve_details
-# Schema      : raw.cve_details with
-#               - remotely_exploit  BOOLEAN
-#               - source_identifier TEXT
-#               - affected_products JSONB
-#               - cvss_scores       JSONB
-#               - loaded_at         TIMESTAMPTZ DEFAULT NOW()
-# Author      : Data Engineering Team
-# Date        : 2025-10-16
-# ============================================================================
-
 from pathlib import Path
 import logging
 from datetime import datetime
@@ -25,11 +15,11 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.engine import Engine
 from psycopg2.extras import execute_values, Json
 
-# 👇 Central connection manager
+# Connexion centralisée
 from database.connection import create_db_engine, get_schema_name
 
 # ----------------------------------------------------------------------------
-# Logging Configuration
+# Logging
 # ----------------------------------------------------------------------------
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 LOGS_DIR = PROJECT_ROOT / "logs"
@@ -51,37 +41,26 @@ logger = logging.getLogger(__name__)
 # ----------------------------------------------------------------------------
 def verify_bronze_schema(engine: Engine) -> bool:
     """
-    Verify that bronze schema and cve_details table exist.
-    get_schema_name("bronze") should resolve to "raw" in your setup.
+    Vérifie que le schéma bronze (raw) et la table existent.
     """
-    schema = get_schema_name("bronze")  # expected "raw"
+    schema = get_schema_name("bronze")  # attendu: "raw"
     table = "cve_details"
     logger.info(f"🔎 Verifying bronze schema '{schema}' and table '{schema}.{table}'...")
 
     with engine.connect() as conn:
-        # Check schema
-        result = conn.execute(
-            text("""
-                SELECT schema_name
-                FROM information_schema.schemata
-                WHERE schema_name = :schema
-            """),
-            {"schema": schema},
-        )
-        if not result.fetchone():
+        # Schéma
+        if not conn.execute(
+            text("SELECT 1 FROM information_schema.schemata WHERE schema_name=:s"),
+            {"s": schema}
+        ).fetchone():
             logger.error(f"❌ Schema '{schema}' does not exist! Run your schema SQL first.")
             return False
 
-        # Check table
-        result = conn.execute(
-            text("""
-                SELECT table_name
-                FROM information_schema.tables
-                WHERE table_schema = :schema AND table_name = :table
-            """),
-            {"schema": schema, "table": table},
-        )
-        if not result.fetchone():
+        # Table
+        if not conn.execute(
+            text("SELECT 1 FROM information_schema.tables WHERE table_schema=:s AND table_name=:t"),
+            {"s": schema, "t": table}
+        ).fetchone():
             logger.error(f"❌ Table {schema}.{table} does not exist!")
             return False
 
@@ -92,7 +71,7 @@ def verify_bronze_schema(engine: Engine) -> bool:
 # Data Preparation
 # ----------------------------------------------------------------------------
 def _coerce_bool(v: Optional[Any]) -> Optional[bool]:
-    """Map various truthy/falsy inputs to bool/None for remotely_exploit."""
+    """Normalise diverses représentations booléennes pour remotely_exploit."""
     if v is None or (isinstance(v, float) and np.isnan(v)):
         return None
     s = str(v).strip().lower()
@@ -106,14 +85,14 @@ def _coerce_bool(v: Optional[Any]) -> Optional[bool]:
     return None
 
 def _norm_text(v: Any) -> Optional[str]:
-    """Normalize text columns: keep None or trimmed string; avoid 'nan' literals."""
+    """Conserve None ou une chaîne trim; évite les littéraux 'nan'/'None'."""
     if v is None or (isinstance(v, float) and np.isnan(v)):
         return None
     s = str(v).strip()
     return s if s not in {'nan', 'None'} else None
 
 def _norm_json(v: Any) -> Optional[Any]:
-    """Ensure JSONB columns are Python list/dict/None. Parse strings if needed."""
+    """Assure list/dict/None pour JSONB; parse si string."""
     if v is None or (isinstance(v, float) and np.isnan(v)):
         return None
     if isinstance(v, (list, dict)):
@@ -125,11 +104,8 @@ def _norm_json(v: Any) -> Optional[Any]:
 
 def prepare_dataframe(cve_data_list: List[Dict[str, Any]]) -> pd.DataFrame:
     """
-    Convert list of CVE dictionaries to DataFrame ready for PostgreSQL
-    - Keep JSON columns as Python list/dict (no json.dumps)
-    - Coerce remotely_exploit to boolean
-    - Let Postgres set loaded_at with DEFAULT NOW()
-    - Map legacy 'source' → 'source_identifier'
+    Transforme une liste de dict CVE en DataFrame conforme au schéma bronze
+    (sans title/description/url; dates en TEXT).
     """
     logger.info("🛠️ Preparing data for database insertion...")
 
@@ -137,7 +113,7 @@ def prepare_dataframe(cve_data_list: List[Dict[str, Any]]) -> pd.DataFrame:
         logger.warning("⚠️  No data to prepare!")
         return pd.DataFrame()
 
-    # Backward-compat: fix top-level + inner CVSS keys if old 'source' present
+    # Normalisation légère des clés internes de CVSS (source → source_identifier si besoin)
     normalized: List[Dict[str, Any]] = []
     for row in cve_data_list:
         r = dict(row)
@@ -153,23 +129,32 @@ def prepare_dataframe(cve_data_list: List[Dict[str, Any]]) -> pd.DataFrame:
 
     df = pd.DataFrame(normalized).copy()
 
+    # Colonnes requises (conformes à raw.cve_details sans title/description/url)
     required = [
-        'cve_id', 'title', 'description', 'published_date', 'last_modified',
-        'remotely_exploit', 'source_identifier', 'category', 'affected_products', 'cvss_scores', 'url'
+        'cve_id',
+        'published_date',     # TEXT (brut NVD)
+        'last_modified',      # TEXT (brut NVD)
+        'remotely_exploit',   # BOOLEAN (peut rester NULL)
+        'source_identifier',  # TEXT
+        'category',           # TEXT (ex: 'CWE-89')
+        'affected_products',  # JSONB
+        'cvss_scores',        # JSONB
     ]
     for col in required:
         if col not in df.columns:
             df[col] = None
 
+    # Types/normalisation
     df['remotely_exploit'] = df['remotely_exploit'].map(_coerce_bool)
 
     for col in ['affected_products', 'cvss_scores']:
         df[col] = df[col].apply(_norm_json)
 
-    for col in ['cve_id', 'title', 'description', 'published_date',
-                'last_modified', 'source_identifier', 'category', 'url']:
+    for col in ['cve_id', 'published_date', 'last_modified',
+                'source_identifier', 'category']:
         df[col] = df[col].apply(_norm_text)
 
+    # On ne gère pas loaded_at (DEFAULT NOW() côté DB)
     if 'loaded_at' in df.columns:
         df = df.drop(columns=['loaded_at'])
 
@@ -180,7 +165,7 @@ def prepare_dataframe(cve_data_list: List[Dict[str, Any]]) -> pd.DataFrame:
 # Direct Loader (no staging)
 # ----------------------------------------------------------------------------
 def load_to_bronze(df: pd.DataFrame, engine: Engine, batch_size: int = 1000) -> Dict[str, int]:
-    schema = get_schema_name("bronze")  # expected "raw"
+    schema = get_schema_name("bronze")  # "raw"
     table = "cve_details"
 
     logger.info("=" * 70)
@@ -200,22 +185,20 @@ def load_to_bronze(df: pd.DataFrame, engine: Engine, batch_size: int = 1000) -> 
         for _, r in frame.iterrows():
             yield (
                 r['cve_id'],
-                r['title'],
-                r['description'],
                 r['published_date'],
                 r['last_modified'],
                 r['remotely_exploit'],
-                r['source_identifier'],   # ← renamed
+                r['source_identifier'],
                 r['category'],
                 Json(r['affected_products']) if r['affected_products'] is not None else None,
                 Json(r['cvss_scores']) if r['cvss_scores'] is not None else None,
-                r['url'],
             )
 
     insert_sql = f"""
         INSERT INTO {schema}.{table} (
-            cve_id, title, description, published_date, last_modified,
-            remotely_exploit, source_identifier, category, affected_products, cvss_scores, url
+            cve_id, published_date, last_modified,
+            remotely_exploit, source_identifier, category,
+            affected_products, cvss_scores
         ) VALUES %s
         ON CONFLICT (cve_id) DO NOTHING
     """
@@ -261,11 +244,11 @@ def load_to_bronze(df: pd.DataFrame, engine: Engine, batch_size: int = 1000) -> 
         raise
 
 # ----------------------------------------------------------------------------
-# Main Orchestrator
+# Orchestrateur
 # ----------------------------------------------------------------------------
 def load_bronze_layer(cve_data_list: List[Dict[str, Any]], engine: Optional[Engine] = None) -> Dict[str, int]:
     """
-    Main function to load scraped CVE data to bronze layer.
+    Point d'entrée: charge une liste de dicts CVE vers la bronze layer.
     """
     logger.info("=" * 70)
     logger.info("🎯 BRONZE LAYER LOAD PIPELINE")
@@ -288,67 +271,3 @@ def load_bronze_layer(cve_data_list: List[Dict[str, Any]], engine: Optional[Engi
     logger.info("🎉 BRONZE LAYER LOAD COMPLETED")
     logger.info("=" * 70)
     return stats
-
-# ----------------------------------------------------------------------------
-# CLI Helper: Load from CSV backup (optional)
-# ----------------------------------------------------------------------------
-def load_from_csv(csv_path: str, engine: Optional[Engine] = None) -> Dict[str, int]:
-    """
-    Load CVE rows from a CSV backup file produced by your scraper.
-    The CSV must include columns for affected_products/cvss_scores as JSON strings.
-    """
-    logger.info(f"📂 Loading data from CSV: {csv_path}")
-
-    df = pd.read_csv(
-        csv_path,
-        dtype=str,
-        keep_default_na=False,
-        on_bad_lines='skip',
-        quotechar='"',
-        escapechar='\\',
-        engine='python'
-    )
-
-    cve_data_list: List[Dict[str, Any]] = []
-    for _, row in df.iterrows():
-        obj = row.to_dict()
-
-        # Map legacy key if necessary
-        if 'source_identifier' not in obj and 'source' in obj:
-            obj['source_identifier'] = obj.pop('source')
-
-        # Normalize JSON columns
-        for col in ['affected_products', 'cvss_scores']:
-            try:
-                obj[col] = json.loads(obj.get(col) or '[]')
-            except Exception:
-                obj[col] = []
-
-        # Ensure inner CVSS rows use source_identifier
-        if isinstance(obj.get('cvss_scores'), list):
-            for s in obj['cvss_scores']:
-                if isinstance(s, dict) and 'source_identifier' not in s and 'source' in s:
-                    s['source_identifier'] = s.pop('source')
-
-        cve_data_list.append(obj)
-
-    return load_bronze_layer(cve_data_list, engine)
-
-# ----------------------------------------------------------------------------
-# Main Entry Point
-# ----------------------------------------------------------------------------
-if __name__ == "__main__":
-    import sys
-
-    if len(sys.argv) > 1:
-        csv_file = sys.argv[1]
-        logger.info(f"📥 Loading from CSV: {csv_file}")
-        stats = load_from_csv(csv_file)
-        logger.info(f"✅ Done. Inserted={stats['inserted']}, Skipped={stats['skipped']}, Failed={stats['failed']}")
-    else:
-        logger.info("💡 Usage:")
-        logger.info("   python load_bronze_layer.py <csv_file>")
-        logger.info("")
-        logger.info("   Or import programmatically:")
-        logger.info("     from batch.load.load_bronze_layer import load_bronze_layer")
-        logger.info("     stats = load_bronze_layer(cve_data_list)")

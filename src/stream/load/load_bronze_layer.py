@@ -26,7 +26,7 @@ from sqlalchemy.engine import Engine
 from psycopg2.extras import execute_values, Json
 
 # 👇 Central connection manager
-from database.connection import create_db_engine, get_schema_name
+from src.database.connection import create_db_engine, get_schema_name
 
 # ----------------------------------------------------------------------------
 # Logging Configuration
