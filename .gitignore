@@ -1,2 +1,60 @@
-archive/
+# ---- OS cruft ----------------------------------------------------
+.DS_Store
+Thumbs.db
+
+# ---- Python / build artifacts -----------------------------------
+__pycache__/
+*.py[cod]
+*.pyd
+*.so
+*.egg-info/
+.dist/
+build/
+dist/
+
+# ---- Environnements virtuels ------------------------------------
+.venv/
+venv/
+env/
+.cenv/
+.cenv*/
+*.conda/
+*.venv/
+
+# ---- Logs (racine & sous-dossiers) ------------------------------
+logs/
+**/logs/
+*.log
+
+# ---- Notebooks checkpoints --------------------------------------
+.ipynb_checkpoints/
+**/.ipynb_checkpoints/
+
+# ---- Données volumineuses locales -------------------------------
+Data/Raw/*.zip
+Data/Raw/*.gz
+Data/Raw/*.tar
+Data/Raw/*.tar.gz
+
+# ---- Secrets / configs locaux -----------------------------------
 .env
+!.gitignore     # s'assure que ce fichier reste suivi
+.runtime/
+.runtime/*      # sessions/jetons locaux
+**/telegram.session
+
+# ---- Cache / outils ---------------------------------------------
+.pytest_cache/
+.coverage
+.mypy_cache/
+.tox/
+.cache/
+
+# ---- IDE ---------------------------------------------------------
+.vscode/
+.idea/
+
+# ---- Artefacts spécifiques projet -------------------------------
+src/**/__pycache__/
+src/**/logs/
+src/logs/

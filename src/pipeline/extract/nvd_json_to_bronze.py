@@ -1,13 +1,9 @@
 # -*- coding: utf-8 -*-
-# src/batch/extract/nvd_json_to_bronze.py
 # =============================================================================
+# src/batch/extract/nvd_json_to_bronze.py
 # NVD JSON 2.0 → Bronze → (auto) Silver → (auto) Gold
-# - Lit nvdcve-2.0-YYYY.json.zip
-# - Bronze: cve_id, published/lastModified (TEXT), CVSS v4/v3/v2, produits (vendor/product),
-#           premier CWE brut "category", NO title/description/url
-# - Puis appelle:
-#     run_eda_to_silver(if_exists=...)            (batch.transform.EDA_bronze_to_silver)
-#     run_silver_to_gold(if_exists=...)           (batch.transform.transformation_to_gold)
+# =============================================================================
+# UPDATED: Uses unified Bronze loader from src/pipeline/load/load_bronze_layer.py
 # =============================================================================
 
 from __future__ import annotations
@@ -26,11 +22,14 @@ if str(SRC_PATH) not in sys.path:
 # -----------------------------------------------------------------------------
 # Imports projet
 # -----------------------------------------------------------------------------
-from batch.load.load_bronze_layer import load_bronze_layer
+# 🔥 UNIFIED BRONZE LOADER
+from pipeline.load.load_bronze_layer import load_bronze_layer
+
 from database.connection import create_db_engine
-# Pipelines suivants (tu les as déjà):
-from batch.transform.EDA_bronze_to_silver import run_eda_to_silver
-from batch.transform.transformation_to_gold import run_silver_to_gold
+
+# Pipelines suivants
+from pipeline.transform.nvd_EDA_bronze_to_silver import run_eda_to_silver
+from pipeline.transform.transformation_to_gold import run_silver_to_gold
 
 import argparse
 import logging
@@ -39,7 +38,7 @@ import logging
 # CONFIG par défaut (surchargé par CLI)
 # -----------------------------------------------------------------------------
 DATA_DIR_DEFAULT = Path("../../../Data/Raw")
-YEARS_DEFAULT = list(range(2002, 2004))  # 2002..2025 inclus
+YEARS_DEFAULT = list(range(2002, 2003))  # 2002..2025 inclus
 ZIP_PATTERN = "nvdcve-2.0-{}.json.zip"
 
 # -----------------------------------------------------------------------------
@@ -65,6 +64,7 @@ CPE23_RE = re.compile(r"^cpe:2\.3:[aho]:([^:]+):([^:]+):([^:]*)", re.IGNORECASE)
 # Helpers d'extraction
 # -----------------------------------------------------------------------------
 def first_cwe_raw(weaknesses: List[Dict[str, Any]]) -> str:
+    """Extract first CWE-XXX from weaknesses list."""
     if not isinstance(weaknesses, list):
         return ""
     for w in weaknesses:
@@ -75,6 +75,7 @@ def first_cwe_raw(weaknesses: List[Dict[str, Any]]) -> str:
     return ""
 
 def collect_cvss(metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Collect all CVSS scores (v4.0, v3.1, v3.0, v2.0) from metrics."""
     out: List[Dict[str, Any]] = []
     if not isinstance(metrics, dict):
         return out
@@ -97,6 +98,7 @@ def collect_cvss(metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
     add_many(metrics.get("cvssMetricV31"), "3.1")
     add_many(metrics.get("cvssMetricV30"), "3.0")
 
+    # CVSS v2.0
     for row in (metrics.get("cvssMetricV2") or []):
         d = row.get("cvssData", {}) or {}
         out.append({
@@ -113,6 +115,7 @@ def collect_cvss(metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
     return [r for r in out if (r.get("version") or r.get("score") or r.get("vector"))]
 
 def parse_cpe_vendor_product(cpe23uri: str) -> Tuple[str, str]:
+    """Parse CPE 2.3 URI to extract vendor and product."""
     if not cpe23uri:
         return "", ""
     m = CPE23_RE.match(cpe23uri)
@@ -124,8 +127,8 @@ def parse_cpe_vendor_product(cpe23uri: str) -> Tuple[str, str]:
 
 def collect_products(configurations: Any) -> List[Dict[str, str]]:
     """
-    Retourne une liste distincte de {"vendor","product"} depuis configurations.
-    Gère dict/list racine, cpeMatch/matches et criteria/cpe23Uri/cpe.
+    Return distinct list of {"vendor","product"} from configurations.
+    Handles dict/list root, cpeMatch/matches and criteria/cpe23Uri/cpe.
     """
     prods: List[Dict[str, str]] = []
     seen = set()
@@ -161,8 +164,8 @@ def collect_products(configurations: Any) -> List[Dict[str, str]]:
 
 def load_year_file(zip_path: Path) -> List[Dict[str, Any]]:
     """
-    Charge un nvdcve-2.0-YYYY.json.zip et renvoie une liste de dicts conformes au schéma Bronze.
-    Dates = TEXT (aucun parsing).
+    Load nvdcve-2.0-YYYY.json.zip and return list of dicts conforming to Bronze schema.
+    Dates = TEXT (no parsing).
     """
     with zipfile.ZipFile(zip_path, "r") as zf:
         members = [n for n in zf.namelist() if n.endswith(".json")]
@@ -182,7 +185,7 @@ def load_year_file(zip_path: Path) -> List[Dict[str, Any]]:
             "cve_id": cve_id,
             "published_date": cve.get("published") or None,   # TEXT
             "last_modified": cve.get("lastModified") or None, # TEXT
-            "remotely_exploit": None,                         # inconnu
+            "remotely_exploit": None,                         # Unknown from NVD
             "source_identifier": cve.get("sourceIdentifier") or None,
             "category": first_cwe_raw(cve.get("weaknesses", [])),
             "affected_products": collect_products(cve.get("configurations", {}) or {}),
@@ -196,19 +199,55 @@ def load_year_file(zip_path: Path) -> List[Dict[str, Any]]:
 # CLI & Run
 # -----------------------------------------------------------------------------
 def parse_args():
-    p = argparse.ArgumentParser(description="NVD JSON → Bronze → (auto) Silver → (auto) Gold")
-    p.add_argument("--data-dir", type=Path, default=DATA_DIR_DEFAULT,
-                   help="Dossier des nvdcve-2.0-*.json.zip")
-    p.add_argument("--start-year", type=int, default=min(YEARS_DEFAULT))
-    p.add_argument("--end-year", type=int, default=max(YEARS_DEFAULT))
-    p.add_argument("--silver-mode", choices=["append", "replace"], default="replace",
-                   help="Mode de chargement vers silver.cve_cleaned")
-    p.add_argument("--gold-mode", choices=["append", "replace"], default="replace",
-                   help="Mode de chargement vers gold.*")
-    p.add_argument("--limit", type=int, default=None,
-                   help="Limiter lignes côté EDA/Silver & Silver→Gold (debug)")
-    p.add_argument("--skip-silver", action="store_true", help="Ne pas exécuter EDA→Silver")
-    p.add_argument("--skip-gold", action="store_true", help="Ne pas exécuter Silver→Gold")
+    p = argparse.ArgumentParser(
+        description="NVD JSON → Bronze → (auto) Silver → (auto) Gold"
+    )
+    p.add_argument(
+        "--data-dir", 
+        type=Path, 
+        default=DATA_DIR_DEFAULT,
+        help="Folder containing nvdcve-2.0-*.json.zip files"
+    )
+    p.add_argument(
+        "--start-year", 
+        type=int, 
+        default=min(YEARS_DEFAULT),
+        help="Start year for processing"
+    )
+    p.add_argument(
+        "--end-year", 
+        type=int, 
+        default=max(YEARS_DEFAULT),
+        help="End year for processing (inclusive)"
+    )
+    p.add_argument(
+        "--silver-mode", 
+        choices=["append", "replace"], 
+        default="replace",
+        help="Loading mode for silver.cve_cleaned"
+    )
+    p.add_argument(
+        "--gold-mode", 
+        choices=["append", "replace"], 
+        default="replace",
+        help="Loading mode for gold.*"
+    )
+    p.add_argument(
+        "--limit", 
+        type=int, 
+        default=None,
+        help="Limit rows for EDA/Silver & Silver→Gold (debug)"
+    )
+    p.add_argument(
+        "--skip-silver", 
+        action="store_true", 
+        help="Skip EDA→Silver step"
+    )
+    p.add_argument(
+        "--skip-gold", 
+        action="store_true", 
+        help="Skip Silver→Gold step"
+    )
     return p.parse_args()
 
 def main():
@@ -216,11 +255,14 @@ def main():
     years = list(range(args.start_year, args.end_year + 1))
     engine = create_db_engine()
 
-    # 1) Bronze load (batch)
+    # ==========================================================================
+    # STEP 1/3: Load Bronze from NVD zips (UNIFIED LOADER)
+    # ==========================================================================
     total_parsed = 0
     total_inserted = 0
+    
     logger.info("=" * 72)
-    logger.info("🚀 STEP 1/3 — Loading Bronze from NVD zips")
+    logger.info("🚀 STEP 1/3 — Loading Bronze from NVD zips (UNIFIED LOADER)")
     logger.info("=" * 72)
 
     for year in years:
@@ -228,56 +270,59 @@ def main():
         if not zp.exists():
             logger.warning(f"[SKIP] {year} — {zp.name} not found")
             continue
+        
         logger.info(f"[LOAD] {year} — {zp.name}")
         rows = load_year_file(zp)
         total_parsed += len(rows)
+        
+        # 🔥 Use unified loader
         stats = load_bronze_layer(rows, engine) or {}
         total_inserted += stats.get("inserted", 0)
 
     logger.info("-" * 72)
     logger.info(f"Bronze summary: parsed={total_parsed:,}  inserted={total_inserted:,}")
 
-    # 2) EDA + Silver load
+    # ==========================================================================
+    # STEP 2/3: EDA + Silver load
+    # ==========================================================================
     if not args.skip_silver:
         logger.info("=" * 72)
-        logger.info(f"🚀 STEP 2/3 — EDA + Load to Silver (mode={args.silver_mode}, limit={args.limit})")
+        logger.info(
+            f"🚀 STEP 2/3 — EDA + Load to Silver "
+            f"(mode={args.silver_mode}, limit={args.limit})"
+        )
         logger.info("=" * 72)
         ok_silver = run_eda_to_silver(limit=args.limit, if_exists=args.silver_mode)
         if not ok_silver:
             logger.error("❌ EDA→Silver failed; stopping pipeline.")
             return 2
     else:
-        logger.info("⏭️ Skipping EDA→Silver as requested.")
+        logger.info("⏭️  Skipping EDA→Silver as requested.")
 
-    # 3) Silver → Gold transform + load
+    # ==========================================================================
+    # STEP 3/3: Silver → Gold transform + load
+    # ==========================================================================
     if not args.skip_gold:
         logger.info("=" * 72)
-        logger.info(f"🚀 STEP 3/3 — Transform & Load to Gold (mode={args.gold_mode}, limit={args.limit})")
+        logger.info(
+            f"🚀 STEP 3/3 — Transform & Load to Gold "
+            f"(mode={args.gold_mode}, limit={args.limit})"
+        )
         logger.info("=" * 72)
-        # run_silver_to_gold lit depuis silver, transforme, et charge via load_gold_layer
-        ok_gold = run_silver_to_goldenforced(args.limit, args.gold_mode)
-        # NOTE: pour rester 100% compatible avec ta signature d'origine:
-        #   run_silver_to_gold(limit: Optional[int] = None, if_exists: str = 'replace') -> bool
-        # S'il n'y a pas d'alias, utilise simplement:
-        # ok_gold = run_silver_to_gold(limit=args.limit, if_exists=args.gold_mode)
-        # (je fournis un alias ci-dessous pour éviter toute typo accidentelle)
+        ok_gold = run_silver_to_gold(limit=args.limit, if_exists=args.gold_mode)
         if not ok_gold:
             logger.error("❌ Silver→Gold failed.")
             return 3
     else:
-        logger.info("⏭️ Skipping Silver→Gold as requested.")
+        logger.info("⏭️  Skipping Silver→Gold as requested.")
 
+    # ==========================================================================
+    # DONE
+    # ==========================================================================
     logger.info("=" * 72)
     logger.info("🎉 Full pipeline done.")
     return 0
 
-# Petit alias sécurisé au cas où on s’est trompé de nom lors d’un refactor.
-def run_silver_to_goldenforced(limit: Optional[int], mode: str) -> bool:
-    try:
-        return run_silver_to_gold(limit=limit, if_exists=mode)
-    except TypeError:
-        # fallback si la signature diffère (très peu probable)
-        return run_silver_to_gold(limit, mode)
 
 if __name__ == "__main__":
     raise SystemExit(main())

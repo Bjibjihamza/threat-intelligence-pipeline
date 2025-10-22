@@ -4,7 +4,9 @@
 # =============================================================================
 # PURPOSE
 #   Telegram → CVE IDs → scrape cvefeed.io → load to BRONZE (raw.cve_details)
-#   (optionnel) enchaîne EDA → SILVER (append) → GOLD (append)
+#   (optional) chain EDA → SILVER (append) → GOLD (append)
+#
+# UPDATED: Uses unified Bronze loader from src/pipeline/load/load_bronze_layer.py
 # =============================================================================
 
 from __future__ import annotations
@@ -42,19 +44,22 @@ for p in (str(PROJECT_ROOT), str(SRC_DIR)):
         sys.path.append(p)
 
 # ========================= Import Pipeline Modules ======================
-from stream.load.load_bronze_layer import load_bronze_layer
-from stream.load.load_silver_layer import load_silver_layer
-from stream.load.load_gold_layer import load_gold_layer
+# 🔥 UNIFIED BRONZE LOADER
+from src.pipeline.load.load_bronze_layer import load_bronze_layer
 
-from database.connection import create_db_engine, get_schema_name
+# Silver and Gold loaders
+from src.pipeline.load.load_silver_layer import load_silver_layer
+from src.pipeline.load.load_gold_layer import load_gold_layer
+
+from src.database.connection import create_db_engine, get_schema_name
 
 # EDA + Gold transformation
-from src.stream.transform.EDA_bronze_to_silver import (
+from src.pipeline.transform.scrape_EDA_bronze_to_silver import (
     perform_eda,
     clean_silver_data,
     create_silver_layer,
 )
-from stream.transform.transformation_to_gold import transform_silver_to_gold
+from src.pipeline.transform.transformation_to_gold import transform_silver_to_gold
 
 # =========================== Config / .env ==============================
 load_dotenv(dotenv_path=PROJECT_ROOT / ".env")
@@ -92,6 +97,7 @@ DETAIL_DELAY_SEC = float(os.getenv("DETAIL_DELAY_SEC", "1.2"))
 
 # ==================== Cloudflare Email Decoding =========================
 def decode_cfemail(hex_str: str) -> str:
+    """Decode Cloudflare-protected email addresses."""
     try:
         data = bytearray(binascii.unhexlify(hex_str))
         if not data:
@@ -102,6 +108,7 @@ def decode_cfemail(hex_str: str) -> str:
         return ""
 
 def extract_email_from_tag(tag) -> str:
+    """Extract email from tag, handling Cloudflare protection."""
     if not tag:
         return ""
     cf = tag.find(["a", "span"], class_=re.compile(r"__cf_email__"))
@@ -116,6 +123,7 @@ def extract_email_from_tag(tag) -> str:
 
 # ===================== Telegram Authentication ==========================
 async def telegram_authenticate(client: TelegramClient) -> bool:
+    """Authenticate with Telegram."""
     if not TELEGRAM_API_ID or not TELEGRAM_API_HASH:
         logger.error("❌ TELEGRAM_API_ID / TELEGRAM_API_HASH are missing in .env")
         return False
@@ -151,7 +159,10 @@ async def telegram_authenticate(client: TelegramClient) -> bool:
 
 # ===================== CVE ID Extraction ================================
 def extract_cve_ids_from_text(text: Optional[str]) -> List[str]:
-    """Pull unique CVE IDs like CVE-2025-12345; respecte TARGET_YEARS si défini."""
+    """
+    Extract unique CVE IDs like CVE-2025-12345.
+    Respects TARGET_YEARS if defined.
+    """
     if not text:
         return []
     pattern = re.compile(r"\bCVE-(\d{4})-(\d{4,})\b")
@@ -174,7 +185,9 @@ async def collect_cve_ids_from_telegram_for_day(
     day_local: datetime,
     tz: ZoneInfo,
 ) -> List[str]:
-    """Return unique CVE IDs posted during [day 00:00, 24:00) local."""
+    """
+    Return unique CVE IDs posted during [day 00:00, 24:00) local time.
+    """
     if day_local.tzinfo is None:
         day_local = day_local.replace(tzinfo=tz)
     start_local = day_local.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -238,6 +251,7 @@ class CVEDetailsScraper:
         })
 
     def scrape_cve_page(self, cve_id: str) -> Optional[Dict[str, Any]]:
+        """Scrape single CVE page and return Bronze-compatible dict."""
         url = CVEFEED_CVE_URL.format(cve_id=cve_id)
         try:
             resp = self.session.get(url, timeout=25)
@@ -253,20 +267,16 @@ class CVEDetailsScraper:
                 "category": "",
                 "affected_products": [],
                 "cvss_scores": [],
-                # Legacy (ignorés par le loader)
-                "title": "",
-                "description": "",
-                "url": url,
             }
 
-            # ID
+            # Extract CVE ID from page
             h_id = soup.find("h5", class_="fs-36 mb-1")
             if h_id:
                 page_id = h_id.get_text(strip=True)
                 if page_id and page_id.startswith("CVE-"):
                     data["cve_id"] = page_id
 
-            # Infos (colonne latérale)
+            # Extract metadata from sidebar
             for col in soup.find_all("div", class_="col-lg-3"):
                 label = (col.find("p", class_="mb-1") or col.find("p", class_="mb-2"))
                 if not label:
@@ -274,6 +284,7 @@ class CVEDetailsScraper:
                 ltxt = label.get_text(strip=True)
                 val = col.find("h6", class_="text-truncate")
                 vtxt = val.get_text(strip=True) if val else ""
+                
                 if "Published" in ltxt or "Date" in ltxt:
                     data["published_date"] = vtxt
                 elif "Modified" in ltxt:
@@ -292,6 +303,7 @@ class CVEDetailsScraper:
             return None
 
     def _extract_cvss_scores(self, soup, data: Dict[str, Any]) -> None:
+        """Extract CVSS scores table."""
         tables = soup.find_all("table", class_="table-borderless")
         for table in tables:
             thead = table.find("thead")
@@ -323,6 +335,7 @@ class CVEDetailsScraper:
             break
 
     def _extract_affected_products(self, soup, data: Dict[str, Any]) -> None:
+        """Extract affected products table."""
         prod_block = None
         for h5 in soup.find_all("h5"):
             if "Affected Products" in h5.get_text():
@@ -351,11 +364,12 @@ class CVEDetailsScraper:
 
 # ============ Helper: Load Scraped CVE from Bronze ======================
 def load_scraped_cve_from_bronze(cve_ids: List[str], engine: Engine) -> pd.DataFrame:
-    """Charge UNIQUEMENT les CVE scrapées depuis Bronze pour EDA/Silver."""
+    """Load ONLY the scraped CVEs from Bronze for EDA/Silver."""
     bronze_schema = get_schema_name("bronze")
     if not cve_ids:
         logger.warning("⚠️  No CVE IDs provided!")
         return pd.DataFrame()
+    
     placeholders = ', '.join([f"'{cve_id}'" for cve_id in cve_ids])
     query = f"""
         SELECT *
@@ -370,8 +384,12 @@ def load_scraped_cve_from_bronze(cve_ids: List[str], engine: Engine) -> pd.DataF
 
 # ================= COMPLETE PIPELINE (Telegram → Gold) ==================
 async def run_complete_pipeline() -> Dict[str, Any]:
+    """
+    Complete ETL pipeline: Telegram → Bronze → Silver → Gold
+    Uses UNIFIED Bronze loader.
+    """
     logger.info("=" * 72)
-    logger.info("🚀 TELEGRAM → COMPLETE ETL PIPELINE (Bronze → Silver → Gold)")
+    logger.info("🚀 TELEGRAM → COMPLETE ETL PIPELINE (UNIFIED LOADER)")
     logger.info("=" * 72)
 
     pipeline_stats: Dict[str, Any] = {
@@ -405,13 +423,17 @@ async def run_complete_pipeline() -> Dict[str, Any]:
     client = TelegramClient(str(session_file), TELEGRAM_API_ID, TELEGRAM_API_HASH)
 
     try:
-        # 1) Auth
+        # =================================================================
+        # STEP 1/8: Telegram Authentication
+        # =================================================================
         authed = await telegram_authenticate(client)
         if not authed:
             logger.error("❌ Telegram authentication failed.")
             return pipeline_stats
 
-        # 2) Collect CVEs
+        # =================================================================
+        # STEP 2/8: Collect CVE IDs from Telegram
+        # =================================================================
         logger.info("\n" + "=" * 72)
         logger.info("📥 STEP 2/8: COLLECTING CVE IDs FROM TELEGRAM")
         logger.info("=" * 72)
@@ -419,7 +441,7 @@ async def run_complete_pipeline() -> Dict[str, Any]:
             client, TELEGRAM_CHANNEL_ID, target_day_local, tz
         )
 
-        # Disconnect tôt
+        # Disconnect early
         try:
             await client.disconnect()
         except Exception:
@@ -432,7 +454,9 @@ async def run_complete_pipeline() -> Dict[str, Any]:
 
         pipeline_stats['total_found'] = len(cve_ids)
 
-        # 3) Check existants
+        # =================================================================
+        # STEP 3/8: Check Existing CVEs in Bronze
+        # =================================================================
         logger.info("\n" + "=" * 72)
         logger.info("🔎 STEP 3/8: CHECKING EXISTING CVEs IN BRONZE")
         logger.info("=" * 72)
@@ -450,7 +474,9 @@ async def run_complete_pipeline() -> Dict[str, Any]:
             pipeline_stats['success'] = True
             return pipeline_stats
 
-        # 4) Scrape
+        # =================================================================
+        # STEP 4/8: Scrape CVE Details
+        # =================================================================
         logger.info("\n" + "=" * 72)
         logger.info("📝 STEP 4/8: SCRAPING CVE DETAILS")
         logger.info("=" * 72)
@@ -459,25 +485,16 @@ async def run_complete_pipeline() -> Dict[str, Any]:
         details_rows: List[Dict[str, Any]] = []
         scraped_cve_ids: List[str] = []
 
-        def _as_text(x):
-            if x is None:
-                return None
-            if isinstance(x, datetime):
-                return x.isoformat()
-            return str(x)
-
         for i, cid in enumerate(to_scrape, 1):
             logger.info(f"[{i}/{len(to_scrape)}] Scraping {cid}...")
             data = scraper.scrape_cve_page(cid)
             if data:
-                # Bronze veut des dates TEXT
-                data["published_date"] = _as_text(data.get("published_date"))
-                data["last_modified"] = _as_text(data.get("last_modified"))
                 details_rows.append(data)
                 scraped_cve_ids.append(cid)
                 pipeline_stats['scraped'] += 1
             else:
                 pipeline_stats['failed'] += 1
+            
             if i < len(to_scrape):
                 time.sleep(DETAIL_DELAY_SEC)
 
@@ -485,15 +502,21 @@ async def run_complete_pipeline() -> Dict[str, Any]:
             logger.info("ℹ️  No details scraped successfully.")
             return pipeline_stats
 
-        # 5) Load → Bronze (UNIFIÉ)
+        # =================================================================
+        # STEP 5/8: Load to Bronze (UNIFIED LOADER)
+        # =================================================================
         logger.info("\n" + "=" * 72)
-        logger.info("📥 STEP 5/8: LOADING TO BRONZE LAYER")
+        logger.info("📥 STEP 5/8: LOADING TO BRONZE LAYER (UNIFIED LOADER)")
         logger.info("=" * 72)
+        
+        # 🔥 Use unified loader
         bronze_stats = load_bronze_layer(details_rows, engine)
         pipeline_stats['bronze_inserted'] = bronze_stats.get('inserted', 0)
         pipeline_stats['bronze_skipped'] = bronze_stats.get('skipped', 0)
 
-        # 6) EDA & Cleaning
+        # =================================================================
+        # STEP 6/8: EDA & Cleaning (Scraped CVEs Only)
+        # =================================================================
         logger.info("\n" + "=" * 72)
         logger.info("🔍 STEP 6/8: EDA & CLEANING (SCRAPED CVEs ONLY)")
         logger.info("=" * 72)
@@ -511,7 +534,9 @@ async def run_complete_pipeline() -> Dict[str, Any]:
         silver_df = create_silver_layer(df_cleaned)
         pipeline_stats['silver_processed'] = len(silver_df)
 
-        # 7) Load → Silver (append)
+        # =================================================================
+        # STEP 7/8: Load to Silver (Append Mode)
+        # =================================================================
         logger.info("\n" + "=" * 72)
         logger.info("💾 STEP 7/8: LOADING TO SILVER LAYER (APPEND MODE)")
         logger.info("=" * 72)
@@ -521,7 +546,9 @@ async def run_complete_pipeline() -> Dict[str, Any]:
             logger.error("❌ Silver loading failed!")
             return pipeline_stats
 
-        # 8) Transform + Load → Gold (append)
+        # =================================================================
+        # STEP 8/8: Transform & Load to Gold (Append Mode)
+        # =================================================================
         logger.info("\n" + "=" * 72)
         logger.info("🔄 STEP 8/8: TRANSFORMING & LOADING TO GOLD (APPEND MODE)")
         logger.info("=" * 72)
@@ -530,14 +557,16 @@ async def run_complete_pipeline() -> Dict[str, Any]:
         gold_success = load_gold_layer(gold_tables, engine)
         pipeline_stats['success'] = bool(gold_success)
 
-        # Résumé
+        # =================================================================
+        # Summary
+        # =================================================================
         logger.info("\n" + "=" * 72)
-        logger.info("🎉 COMPLETE PIPELINE FINISHED (Telegram → Bronze → Silver → Gold)")
+        logger.info("🎉 COMPLETE PIPELINE FINISHED")
         logger.info("=" * 72)
         logger.info("📊 PIPELINE STATISTICS:")
-        for k in ['total_found','already_in_db','to_scrape','scraped',
-                  'bronze_inserted','silver_processed','gold_processed',
-                  'failed','success']:
+        for k in ['total_found', 'already_in_db', 'to_scrape', 'scraped',
+                  'bronze_inserted', 'silver_processed', 'gold_processed',
+                  'failed', 'success']:
             logger.info(f"   {k:>18}: {pipeline_stats[k]}")
         logger.info("=" * 72)
 
@@ -550,10 +579,12 @@ async def run_complete_pipeline() -> Dict[str, Any]:
 
 # ============================= MAIN =====================================
 def main() -> int:
+    """Main entry point."""
     logger.info(f"▶ Running {Path(__file__).name}")
     import asyncio
     stats = asyncio.run(run_complete_pipeline())
     return 0 if stats['success'] else 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

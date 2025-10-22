@@ -3,6 +3,11 @@
 LOAD SILVER LAYER - INSERT ONLY, SKIP DUPLICATES (FIXED)
 Ne fait QUE des INSERT, skip les CVE qui existent déjà
 JAMAIS de TRUNCATE, JAMAIS d'UPDATE, JAMAIS de REPLACE
+
+Table cible: silver.cve_cleaned
+Colonnes: cve_id, vulnarbilit, published_date, last_modified, loaded_at,
+          remotely_exploit, source_identifier, affected_products (TEXT JSON),
+          cvss_scores (TEXT JSON)
 """
 
 from pathlib import Path
@@ -17,7 +22,6 @@ import numpy as np
 
 import pandas as pd
 from sqlalchemy import text
-from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.engine import Engine
 
 from database.connection import create_db_engine, get_schema_name
@@ -30,10 +34,7 @@ LOG_FILE = LOGS_DIR / "load_silver_layer.log"
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
-    handlers=[
-        logging.FileHandler(LOG_FILE, encoding="utf-8"),
-        logging.StreamHandler()
-    ]
+    handlers=[logging.FileHandler(LOG_FILE, encoding="utf-8"), logging.StreamHandler()]
 )
 logger = logging.getLogger("load_silver_layer")
 
@@ -74,6 +75,19 @@ def verify_silver_schema(engine: Engine) -> bool:
             if not result.fetchone():
                 logger.error(f"❌ Table {schema}.{table} does not exist!")
                 return False
+
+            # Sanity: colonne vulnarbilit
+            result = conn.execute(
+                text("""
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_schema = :schema AND table_name = :table
+                      AND column_name = 'vulnarbilit'
+                """),
+                {"schema": schema, "table": table}
+            )
+            if not result.fetchone():
+                logger.error(f"❌ Column 'vulnarbilit' missing in {schema}.{table}!")
+                return False
         
         logger.info("✅ Silver schema validated")
         return True
@@ -85,37 +99,30 @@ def verify_silver_schema(engine: Engine) -> bool:
 # ============================================================================
 # DATA PREPARATION
 # ============================================================================
-def safe_json_dumps(x):
-    """Convertit en JSON string de manière sécurisée"""
+def _is_nan_float(x) -> bool:
+    return isinstance(x, float) and np.isnan(x)
+
+def safe_json_text(x):
+    """Convertit en JSON TEXT compact (ou None si vide/invalid)"""
     try:
-        if x is None:
+        if x is None or _is_nan_float(x):
             return None
-        
-        if isinstance(x, float) and np.isnan(x):
-            return None
-        
-        if isinstance(x, np.ndarray):
-            if x.size == 0:
-                return None
-            x = x.tolist()
-        
-        if isinstance(x, str):
-            x = x.strip()
-            if x == '' or x.lower() in ('null', 'none', 'nan'):
-                return None
-            try:
-                parsed = json.loads(x)
-                return json.dumps(parsed)
-            except:
-                return None
-        
         if isinstance(x, (list, dict)):
             if len(x) == 0:
                 return None
-            return json.dumps(x)
-        
+            return json.dumps(x, ensure_ascii=False, separators=(",", ":"))
+        if isinstance(x, str):
+            s = x.strip()
+            if s == "" or s.lower() in ("null", "none", "nan", "[]", "{}"):
+                return None
+            try:
+                parsed = json.loads(s)
+                if isinstance(parsed, (list, dict)) and len(parsed) == 0:
+                    return None
+                return json.dumps(parsed, ensure_ascii=False, separators=(",", ":"))
+            except Exception:
+                return None
         return None
-        
     except Exception:
         return None
 
@@ -124,37 +131,43 @@ def prepare_silver_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     logger.info("🛠️ Preparing dataframe for silver layer...")
     
     required_columns = [
-        'cve_id', 'title', 'description', 'category', 'predicted_category',
+        'cve_id', 'vulnarbilit',
         'published_date', 'last_modified', 'loaded_at',
         'remotely_exploit', 'source_identifier',
-        'affected_products', 'cvss_scores', 'url'
+        'affected_products', 'cvss_scores'
     ]
     
     df_clean = df.copy()
     
-    # Garder uniquement les colonnes requises
-    available_cols = [col for col in required_columns if col in df_clean.columns]
-    df_clean = df_clean[available_cols].copy()
-    
-    # Ajouter colonnes manquantes
+    # Garder uniquement les colonnes requises + ajouter manquantes
     for col in required_columns:
         if col not in df_clean.columns:
             logger.warning(f"⚠️  Adding missing column: {col}")
             df_clean[col] = None
+    df_clean = df_clean[required_columns].copy()
     
-    df_clean = df_clean[required_columns]
-    
-    # Convertir les dates
+    # Convertir les dates -> timestamp naïf
     for date_col in ['published_date', 'last_modified', 'loaded_at']:
-        if date_col in df_clean.columns:
-            df_clean[date_col] = pd.to_datetime(df_clean[date_col], errors='coerce')
-            if df_clean[date_col].dtype == 'datetime64[ns, UTC]':
-                df_clean[date_col] = df_clean[date_col].dt.tz_localize(None)
+        df_clean[date_col] = pd.to_datetime(df_clean[date_col], errors='coerce')
+        if pd.api.types.is_datetime64tz_dtype(df_clean[date_col]):
+            df_clean[date_col] = df_clean[date_col].dt.tz_convert(None)
     
-    # Convertir JSONB
+    # JSON en TEXT
     for json_col in ['affected_products', 'cvss_scores']:
-        if json_col in df_clean.columns:
-            df_clean[json_col] = df_clean[json_col].apply(safe_json_dumps)
+        df_clean[json_col] = df_clean[json_col].apply(safe_json_text)
+    
+    # Defaults/normalisation
+    df_clean['vulnarbilit'] = df_clean['vulnarbilit'].fillna('uncategorized').replace('', 'uncategorized')
+    
+    if 'remotely_exploit' in df_clean.columns:
+        def _coerce_bool(v):
+            if v is None or _is_nan_float(v):
+                return None
+            s = str(v).strip().lower()
+            if s in {'true','yes','y','1'}: return True
+            if s in {'false','no','n','0'}: return False
+            return None
+        df_clean['remotely_exploit'] = df_clean['remotely_exploit'].apply(_coerce_bool)
     
     # Nettoyer cve_id
     before = len(df_clean)
@@ -163,7 +176,6 @@ def prepare_silver_dataframe(df: pd.DataFrame) -> pd.DataFrame:
         (df_clean['cve_id'].astype(str).str.strip() != '')
     ]
     after = len(df_clean)
-    
     if before > after:
         logger.warning(f"⚠️  Removed {before - after} rows with invalid cve_id")
     
@@ -171,135 +183,120 @@ def prepare_silver_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     before = len(df_clean)
     df_clean = df_clean.drop_duplicates(subset=['cve_id'], keep='first')
     after = len(df_clean)
-    
     if before > after:
         logger.warning(f"⚠️  Removed {before - after} duplicate cve_ids in DataFrame")
     
     logger.info(f"✅ Prepared {len(df_clean):,} rows for silver layer")
-    
     return df_clean
 
 # ============================================================================
 # LOAD TO SILVER - INSERT ONLY (SKIP DUPLICATES) - FIXED
 # ============================================================================
+
+
+
+
+
+
 def load_to_silver_table(
     df: pd.DataFrame,
     engine: Engine
 ) -> Dict[str, int]:
     """
-    ⭐ FIXED VERSION ⭐
-    Charge les données dans silver.cve_cleaned
-    - INSERT ONLY: Insère uniquement les nouveaux CVE
-    - SKIP: Ignore les CVE qui existent déjà
-    - NO TRUNCATE: Jamais de suppression
-    - NO UPDATE: Jamais de modification
-    - NO if_exists PARAMETER: Toujours append-only
+    Insert-only loader for silver.cve_cleaned (skip duplicates).
     """
     schema = get_schema_name("silver")
     table = "cve_cleaned"
     full_table = f"{schema}.{table}"
-    
+
     logger.info("=" * 72)
-    logger.info(f"💾 LOADING TO SILVER: {full_table}")
-    logger.info(f"   Mode: INSERT ONLY (skip existing) - NO TRUNCATE EVER")
+    logger.info("LOADING TO SILVER: %s", full_table)
+    logger.info("Mode: INSERT ONLY (skip existing) - NO TRUNCATE EVER")
     logger.info("=" * 72)
-    
+
     if df.empty:
-        logger.warning("⚠️  No data to load!")
-        return {'inserted': 0, 'skipped': 0, 'failed': 0}
-    
-    stats = {'inserted': 0, 'skipped': 0, 'failed': 0}
+        logger.warning("No data to load.")
+        return {"inserted": 0, "skipped": 0, "failed": 0}
+
+    stats = {"inserted": 0, "skipped": 0, "failed": 0}
     start_time = datetime.now()
-    
+
     try:
-        # Préparer les données
+        # Prepare data
         df_prepared = prepare_silver_dataframe(df)
-        
         if df_prepared.empty:
-            logger.warning("⚠️  No valid data after preparation!")
+            logger.warning("No valid data after preparation.")
             return stats
-        
-        logger.info(f"📊 DataFrame shape: {df_prepared.shape}")
-        logger.info(f"🔍 Checking for existing CVEs in Silver...")
-        
-        # Récupérer les CVE_ID à vérifier
-        cve_ids = df_prepared['cve_id'].tolist()
-        
+
+        logger.info("DataFrame shape: %s", df_prepared.shape)
+        logger.info("Checking for existing CVEs in Silver...")
+
+        # Collect CVE IDs
+        cve_ids = df_prepared["cve_id"].tolist()
         if not cve_ids:
-            logger.warning("⚠️  No CVE IDs to check!")
+            logger.warning("No CVE IDs to check.")
             return stats
-        
-        # Échapper les apostrophes dans les CVE IDs
-        escaped_ids = [f"'{str(cve_id).replace(chr(39), chr(39)+chr(39))}'" for cve_id in cve_ids]
-        placeholders = ','.join(escaped_ids)
-        
+
+        # Build IN list safely
+        escaped_ids = ["'" + str(c).replace("'", "''") + "'" for c in cve_ids]
+        placeholders = ",".join(escaped_ids)
+
         with engine.connect() as conn:
             result = conn.execute(
                 text(f"SELECT cve_id FROM {full_table} WHERE cve_id IN ({placeholders})")
             )
             existing_cves = {row[0] for row in result.fetchall()}
-        
-        logger.info(f"   📊 Already in Silver: {len(existing_cves)} CVE(s)")
-        
-        # Filtrer pour garder UNIQUEMENT les nouveaux CVE
-        df_to_insert = df_prepared[~df_prepared['cve_id'].isin(existing_cves)].copy()
-        stats['skipped'] = len(existing_cves)
-        
+
+        logger.info("Already in Silver: %d CVE(s)", len(existing_cves))
+
+        # Filter to new rows
+        df_to_insert = df_prepared[~df_prepared["cve_id"].isin(existing_cves)].copy()
+        stats["skipped"] = len(existing_cves)
+
         if df_to_insert.empty:
-            logger.info("✅ All CVEs already exist in Silver - nothing to insert")
-            logger.info(f"   ⭕ Skipped: {stats['skipped']} CVE(s)")
+            logger.info("All CVEs already exist in Silver - nothing to insert.")
+            logger.info("Skipped: %d CVE(s)", stats["skipped"])
             return stats
-        
-        logger.info(f"   ➕ New CVEs to insert: {len(df_to_insert)}")
-        
-        # ⭐ CRITICAL FIX: Toujours 'append', jamais 'replace'
-        logger.info(f"📤 Inserting {len(df_to_insert)} new CVE(s) (append mode)...")
-        
+
+        logger.info("New CVEs to insert: %d", len(df_to_insert))
+
+        # Append insert
+        logger.info("Inserting rows (append mode)...")
         df_to_insert.to_sql(
             name=table,
             con=engine,
             schema=schema,
-            if_exists='append',  # ⭐ TOUJOURS APPEND
+            if_exists="append",
             index=False,
-            method='multi',
+            method="multi",
             chunksize=500,
-            dtype=None
+            dtype=None,
         )
-        
-        stats['inserted'] = len(df_to_insert)
-        
-        # Statistiques finales
+
+        stats["inserted"] = len(df_to_insert)
+
+        # Final stats
         with engine.connect() as conn:
-            result = conn.execute(text(f"SELECT COUNT(*) FROM {full_table}"))
-            final_count = result.scalar()
-            
-            result = conn.execute(text(f"""
-                SELECT COUNT(*) 
-                FROM {full_table} 
-                WHERE predicted_category IS NOT NULL
-            """))
-            predicted_count = result.scalar()
-        
+            final_count = conn.execute(text(f"SELECT COUNT(*) FROM {full_table}")).scalar()
+
         duration = (datetime.now() - start_time).total_seconds()
-        
+
         logger.info("=" * 72)
-        logger.info("📊 LOAD STATISTICS")
+        logger.info("LOAD STATISTICS")
         logger.info("=" * 72)
-        logger.info(f"✅ Inserted (new):      {stats['inserted']:,}")
-        logger.info(f"⭕ Skipped (existing):  {stats['skipped']:,}")
-        logger.info(f"🧮 Total in Silver:     {final_count:,}")
-        logger.info(f"🤖 With predictions:    {predicted_count:,} ({predicted_count/final_count*100:.1f}%)")
-        logger.info(f"⏱️  Duration: {duration:.2f}s")
-        if duration > 0 and stats['inserted'] > 0:
-            logger.info(f"⚡ Speed: {stats['inserted']/duration:.0f} rows/sec")
+        logger.info("Inserted (new): %d", stats["inserted"])
+        logger.info("Skipped (existing): %d", stats["skipped"])
+        logger.info("Total in Silver: %d", final_count)
+        logger.info("Duration: %.2fs", duration)
         logger.info("=" * 72)
-        
+
         return stats
-        
+
     except Exception as e:
-        logger.error(f"❌ Database error: {e}", exc_info=True)
-        stats['failed'] = len(df)
+        logger.error("Database error: %s", e, exc_info=True)
+        stats["failed"] = len(df)
         raise
+
 
 # ============================================================================
 # MAIN LOAD FUNCTION - FIXED
@@ -307,27 +304,14 @@ def load_to_silver_table(
 def load_silver_layer(
     tables: Dict[str, pd.DataFrame],
     engine: Optional[Engine] = None,
-    if_exists: str = 'append'  # ⭐ Paramètre ignoré - toujours append
+    if_exists: str = 'append'  # Paramètre ignoré - toujours append
 ) -> bool:
     """
-    ⭐ FIXED VERSION ⭐
-    Fonction principale pour charger la couche Silver
-    
-    COMPORTEMENT:
-    - Paramètre if_exists est IGNORÉ (pour compatibilité)
-    - Fait TOUJOURS INSERT ONLY (skip duplicates)
-    - JAMAIS de TRUNCATE/REPLACE
-    - Comportement additif: 10 CVE + 10 CVE = 20 CVE (sans doublons)
+    Fonction principale pour charger la couche Silver (append-only, skip duplicates)
     """
     logger.info("=" * 72)
     logger.info("🚀 SILVER LAYER LOAD PIPELINE (APPEND-ONLY MODE)")
     logger.info("=" * 72)
-    
-    # ⭐ AVERTISSEMENT si if_exists='replace'
-    if if_exists == 'replace':
-        logger.warning("⚠️  if_exists='replace' was requested but is IGNORED")
-        logger.warning("⚠️  This script ONLY does INSERT (skip duplicates)")
-        logger.warning("⚠️  To reset the table, use SQL: TRUNCATE silver.cve_cleaned;")
     
     if 'cve_cleaned' not in tables:
         logger.error("❌ Missing 'cve_cleaned' in tables dict!")
@@ -342,8 +326,8 @@ def load_silver_layer(
         
         df_cleaned = tables['cve_cleaned']
         
-        # ⭐ TOUJOURS EN MODE INSERT ONLY
-        stats = load_to_silver_table(df_cleaned, engine)
+        # Toujours en INSERT ONLY
+        _ = load_to_silver_table(df_cleaned, engine)
         
         # Rafraîchir statistiques
         schema = get_schema_name("silver")
@@ -361,7 +345,7 @@ def load_silver_layer(
         return False
 
 # ============================================================================
-# CLI
+# CLI (optional quick test)
 # ============================================================================
 if __name__ == "__main__":
     import argparse
@@ -372,73 +356,21 @@ if __name__ == "__main__":
     
     if args.test:
         logger.info("🧪 Running test mode...")
-        
-        # Test 1: Premier CVE
         test_data_1 = pd.DataFrame([
             {
                 'cve_id': 'CVE-2024-TEST-001',
-                'title': 'Test Vulnerability 1',
-                'description': 'First test',
-                'category': 'test',
-                'predicted_category': None,
+                'vulnarbilit': 'xss',
                 'published_date': pd.Timestamp.now(),
                 'last_modified': pd.Timestamp.now(),
                 'loaded_at': pd.Timestamp.now(),
                 'remotely_exploit': True,
                 'source_identifier': 'test@example.com',
                 'affected_products': '[]',
-                'cvss_scores': '[{"score": "7.5", "version": "CVSS 3.1"}]',
-                'url': 'https://test.com/001'
+                'cvss_scores': '[{"score":"7.5","version":"3.1"}]'
             }
         ])
-        
-        logger.info("\n🧪 TEST 1: Inserting first CVE...")
         tables = {'cve_cleaned': test_data_1}
-        success = load_silver_layer(tables)
-        
-        if success:
-            # Test 2: Même CVE (devrait skip)
-            logger.info("\n🧪 TEST 2: Trying to insert same CVE (should skip)...")
-            success = load_silver_layer(tables)
-            
-            # Test 3: Nouveau CVE (devrait insert)
-            test_data_2 = pd.DataFrame([
-                {
-                    'cve_id': 'CVE-2024-TEST-002',
-                    'title': 'Test Vulnerability 2',
-                    'description': 'Second test',
-                    'category': 'test',
-                    'predicted_category': None,
-                    'published_date': pd.Timestamp.now(),
-                    'last_modified': pd.Timestamp.now(),
-                    'loaded_at': pd.Timestamp.now(),
-                    'remotely_exploit': False,
-                    'source_identifier': 'test@example.com',
-                    'affected_products': '[]',
-                    'cvss_scores': '[{"score": "5.0", "version": "CVSS 3.1"}]',
-                    'url': 'https://test.com/002'
-                }
-            ])
-            
-            logger.info("\n🧪 TEST 3: Inserting different CVE (should insert)...")
-            tables = {'cve_cleaned': test_data_2}
-            success = load_silver_layer(tables)
-            
-            logger.info("\n✅ All tests passed!")
-            logger.info("💡 Result should be: 2 CVEs total (001 + 002)")
-        
-        sys.exit(0 if success else 1)
+        ok = load_silver_layer(tables)
+        sys.exit(0 if ok else 1)
     else:
-        logger.info("💡 Usage:")
-        logger.info("   python load_silver_layer_fixed.py --test")
-        logger.info("")
-        logger.info("📝 Fixed Behavior:")
-        logger.info("   ✅ INSERT new CVEs only")
-        logger.info("   ⭕ SKIP existing CVEs (no duplicates)")
-        logger.info("   ❌ NEVER truncate or update")
-        logger.info("   🔒 if_exists='replace' is IGNORED")
-        logger.info("")
-        logger.info("📊 Example:")
-        logger.info("   Scrape 10 CVE → Silver has 10")
-        logger.info("   Scrape 10 CVE (5 new, 5 duplicates) → Silver has 15")
-        logger.info("   Total accumulation without duplicates")
+        logger.info("💡 Usage: python load_silver_layer.py --test")

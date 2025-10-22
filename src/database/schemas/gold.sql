@@ -177,6 +177,8 @@ CREATE INDEX idx_gold_bridge_product ON gold.bridge_cve_products(product_id);
 COMMENT ON SCHEMA gold IS 'Gold Layer: Star Schema aligned to Silver (vulnarbilit only)';
 COMMENT ON TABLE gold.dim_cve IS 'CVE dimension: normalized class (vulnarbilit) + dates/meta';
 
+
+
 -- Analyze
 ANALYZE gold.dim_cve;
 ANALYZE gold.dim_cvss_source;
