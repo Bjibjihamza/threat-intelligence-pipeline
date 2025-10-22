@@ -1,465 +1,204 @@
-# 🛡️ Threat Intelligence Pipeline (TIP)
+# Threat Intelligence Pipeline for CVE Data
 
-A production-grade ETL pipeline for collecting, processing, and analyzing CVE (Common Vulnerabilities and Exposures) data from CVE feeds. This pipeline implements a **Bronze-Silver-Gold** medallion architecture using Python, PostgreSQL, and data engineering best practices.
+## Overview
 
-## 📋 Table of Contents
+This project implements an ETL (Extract, Transform, Load) pipeline for building a threat intelligence data warehouse focused on Common Vulnerabilities and Exposures (CVE) data. It processes historical CVE feeds from the National Vulnerability Database (NVD) and real-time CVE alerts from sources like CVEFeed.io via Telegram channels (inspired by the "CVE Monitor" channel).
 
-- [Overview](#overview)
-- [Architecture](#architecture)
-- [Features](#features)
-- [Prerequisites](#prerequisites)
-- [Installation](#installation)
-- [Database Setup](#database-setup)
-- [Usage](#usage)
-- [Project Structure](#project-structure)
-- [Pipeline Stages](#pipeline-stages)
-- [Logging](#logging)
-- [Contributing](#contributing)
+The pipeline follows a medallion architecture:
+- **Bronze Layer**: Raw, unprocessed data ingestion.
+- **Silver Layer**: Cleaned and enriched data with exploratory data analysis (EDA).
+- **Gold Layer**: Aggregated, business-ready data for BI visualization and querying.
 
----
+Key features:
+- Batch processing for historical NVD JSON feeds (2002–2025).
+- Streaming processing for live CVE feeds via Telegram scraping.
+- PostgreSQL backend for data warehousing.
+- Automated modular execution (e.g., extract scripts trigger load and transform).
 
-## 🎯 Overview
+This setup enables scalable threat intelligence analysis, such as vulnerability trend tracking, severity scoring (CVSS), and alerting.
 
-The Threat Intelligence Pipeline automates the collection and processing of CVE data, transforming raw vulnerability information into structured, analysis-ready datasets. The pipeline:
+## Inspiration
 
-- **Scrapes** CVE details from web sources (Bronze Layer)
-- **Transforms** raw data into normalized dimensional models (Silver Layer)
-- **Aggregates** insights for business intelligence (Gold Layer - future)
+Inspired by the arXiv paper [Building Datasets from Telegram Channels: A Pipeline for Real-Time Threat Intelligence](https://arxiv.org/pdf/2509.20943), which discusses constructing datasets from Telegram channels. We adapted this for CVE monitoring:
+- Initial testing on the "CVE Monitor" Telegram channel for real-time alerts.
+- Expanded to CVEFeed.io for detailed feeds.
+- Combined with historical NVD data for a complete timeline.
 
-This enables security analysts, data scientists, and DevOps teams to:
-- Track vulnerability trends over time
-- Identify affected products and vendors
-- Analyze CVSS scores and severity distributions
-- Build threat intelligence dashboards
-
----
-
-## 🏗️ Architecture
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    BRONZE LAYER (Raw)                       │
-│  - Scrape CVE data from cvefeed.io                         │
-│  - Store raw JSON/text in PostgreSQL (raw.cve_details)     │
-│  - Preserve original structure + timestamps                 │
-└─────────────────────────────────────────────────────────────┘
-                            ↓
-┌─────────────────────────────────────────────────────────────┐
-│                   SILVER LAYER (Refined)                    │
-│  - Parse JSON fields (CVSS scores, products)               │
-│  - Normalize dates and data types                          │
-│  - Create dimensional model:                               │
-│    • dim_cve (CVE details)                                 │
-│    • fact_cvss_scores (CVSS metrics)                       │
-│    • dim_products (affected vendors/products)              │
-│    • bridge_cve_products (many-to-many relationships)      │
-└─────────────────────────────────────────────────────────────┘
-                            ↓
-┌─────────────────────────────────────────────────────────────┐
-│                    GOLD LAYER (Analytics)                   │
-│  - Materialized views for dashboards                       │
-│  - Aggregated metrics and KPIs                             │
-│  - Ready for BI tools (Tableau, Power BI, etc.)            │
-└─────────────────────────────────────────────────────────────┘
-```
-
----
-
-## ✨ Features
-
-### Data Extraction
-- ✅ Web scraping with BeautifulSoup and requests
-- ✅ Batch processing with configurable delays
-- ✅ Automatic duplicate detection (skip already-scraped CVEs)
-- ✅ Resume capability (KeyboardInterrupt handling)
-- ✅ Progress tracking with detailed logging
-
-### Data Transformation
-- ✅ Multi-version CVSS parsing (v2.0, v3.0, v3.1, v4.0)
-- ✅ CVSS vector decoding into human-readable metrics
-- ✅ Date normalization and validation
-- ✅ Product/vendor relationship extraction
-- ✅ Dimensional modeling (star schema)
-
-### Data Loading
-- ✅ PostgreSQL integration with SQLAlchemy
-- ✅ Bulk insert with conflict resolution
-- ✅ Transaction safety and rollback handling
-- ✅ Materialized view refresh automation
-- ✅ Data quality constraints (unique keys, foreign keys)
-
-### Monitoring & Logging
-- ✅ Comprehensive logging (file + console)
-- ✅ Pipeline statistics and metrics
-- ✅ Error tracking with stack traces
-- ✅ Performance monitoring (duration, throughput)
-
----
-
-## 📦 Prerequisites
-
-### Required Software
-- **Python 3.8+**
-- **PostgreSQL 12+**
-- **pip** (Python package manager)
-
-### Python Dependencies
-```
-pandas
-numpy
-sqlalchemy
-psycopg2-binary
-requests
-beautifulsoup4
-python-dateutil
-```
-
----
-
-## 🚀 Installation
-
-### 1. Clone the Repository
-```bash
-git clone <your-repo-url>
-cd threat-intelligence-pipeline
-```
-
-### 2. Create Virtual Environment
-```bash
-# Windows (PowerShell)
-python -m venv cenv
-.\cenv\Scripts\Activate.ps1
-
-# macOS/Linux
-python3 -m venv cenv
-source cenv/bin/activate
-```
-
-### 3. Install Dependencies
-```bash
-pip install -r requirements.txt
-```
-
-### 4. Configure Database Credentials
-Edit `src/tip/load/load_bronze_layer.py` and `load_silver_layer.py`:
-
-```python
-DB_CONFIG = {
-    "user": "postgres",
-    "password": "your_password",  # Change this!
-    "host": "localhost",
-    "port": "5432",
-    "database": "tip",
-}
-```
-
----
-
-## 🗄️ Database Setup
-
-### 1. Create Database
-```sql
-CREATE DATABASE tip;
-```
-
-### 2. Run Schema Scripts
-Execute the SQL scripts in order (located in your SQL directory):
-
-```bash
-psql -U postgres -d tip -f sql/bronze.sql
-psql -U postgres -d tip -f sql/silver.sql
-psql -U postgres -d tip -f sql/gold.sql  # Optional
-```
-
-**Bronze Schema** creates:
-- `raw.cve_details` table (with JSONB columns for nested data)
-
-**Silver Schema** creates:
-- `silver.dim_cve` (CVE dimension)
-- `silver.fact_cvss_scores` (CVSS metrics)
-- `silver.dim_products` (product dimension)
-- `silver.bridge_cve_products` (CVE-product relationships)
-
----
-
-## 📖 Usage
-
-### End-to-End Pipeline Execution
-
-#### Step 1: Scrape CVE Data (Bronze Layer)
-```bash
-cd src/tip/extract
-python scrape_cvefeed_bronze.py
-```
-
-**Features:**
-- Reads CVE IDs from `Data/cve_ids_all_years_2002_2025_from_zip.csv`
-- Scrapes CVE details from cvefeed.io
-- Loads directly to PostgreSQL `raw.cve_details`
-- Batch size: 100 CVEs per database insert
-- Auto-skip already scraped CVEs
-
-**Configuration:**
-```python
-stats = scraper.scrape_and_load_batch(
-    cve_urls,
-    batch_size=100,  # Adjust for performance
-    delay=2          # Seconds between requests (be respectful!)
-)
-```
-
-#### Step 2: Transform to Silver Layer
-```bash
-cd ../transform
-python EDA_bronze_to_silver.py
-```
-
-**Features:**
-- Reads from `raw.cve_details`
-- Parses JSON fields (CVSS scores, products)
-- Creates dimensional tables
-- Loads to `silver.*` schema
-- Refreshes materialized views
-
----
-
-## 📁 Project Structure
+## Project Structure
 
 ```
 threat-intelligence-pipeline/
-│
-├── src/tip/                    # Main package
-│   ├── extract/               # Data extraction (scraping)
-│   │   ├── scrape_cvefeed_bronze.py
-│   │   └── extract_cve_ids_all_years_zip.ipynb
-│   │
-│   ├── load/                  # Data loading to PostgreSQL
-│   │   ├── load_bronze_layer.py
-│   │   └── load_silver_layer.py
-│   │
-│   ├── transform/             # Data transformation logic
-│   │   ├── EDA_bronze_to_silver.py
-│   │   └── EDA._bronze_to_silver.ipynb
-│   │
-│   ├── utils/                 # Helper functions
-│   ├── cli/                   # Command-line interface (future)
-│   ├── config.py              # Configuration settings
-│   └── __init__.py
-│
-├── Data/                      # Data files
-│   └── cve_ids_all_years_2002_2025_from_zip.csv
-│
-├── logs/                      # Pipeline logs
-│   ├── scraper.log
-│   ├── load_bronze.log
-│   ├── load_silver.log
-│   └── bronze_to_silver.log
-│
-├── archive/                   # Old versions and experiments
-├── .gitignore
-├── README.md
-└── requirements.txt
+├── Data/
+│   └── Raw/                  # Downloaded NVD JSON ZIPs and download script
+│       ├── download_zips.py
+│       └── nvdcve-2.0-*.json.zip  # Historical feeds (2002–2025)
+├── src/
+│   ├── database/
+│   │   ├── schemas/          # SQL DDL for medallion layers
+│   │   │   ├── bronze.sql
+│   │   │   ├── silver.sql
+│   │   │   └── gold.sql
+│   │   └── connection.py     # DB connection utilities
+│   ├── pipeline/
+│   │   ├── extract/          # Data extraction scripts
+│   │   │   ├── nvd_json_to_bronze.py     # Batch historical load
+│   │   │   └── scrape_live_cvefeed_bronze.py  # Streaming Telegram scrape
+│   │   ├── load/             # Data loading modules
+│   │   │   ├── load_bronze_layer.py
+│   │   │   ├── load_silver_layer.py
+│   │   │   └── load_gold_layer.py
+│   │   └── transform/        # Data transformation & EDA
+│   │       ├── nvd_EDA_bronze_to_silver.py
+│   │       ├── scrape_EDA_bronze_to_silver.py
+│   │       └── transformation_to_gold.py
+│   ├── utils/                # Helper utilities (e.g., CVSS parser)
+│   └── logs/                 # Runtime logs (e.g., load_bronze.log)
+├── .env                      # Environment variables (DB creds, Telegram API)
+├── example.env               # Template for .env
+├── requirements.txt          # Python dependencies
+└── README.md                 # This file
 ```
 
----
+**Note**: The `archive/` directory contains legacy code (batch/stream variants) and is not used in the current pipeline.
 
-## 🔄 Pipeline Stages
+## Prerequisites
 
-### 🥉 Bronze Layer (Raw)
-**Purpose:** Store raw, unprocessed data exactly as scraped.
+- Python 3.11+ (virtual environment recommended: `python -m venv cenv`).
+- PostgreSQL 14+ (with `psycopg2` for connectivity).
+- Telegram API credentials (for streaming): Obtain from [my.telegram.org](https://my.telegram.org/apps).
 
-**Key Components:**
-- `CVEScraper` class: Handles web scraping logic
-- `load_bronze_layer()`: Bulk insert with duplicate handling
-- Table: `raw.cve_details`
+## Installation
 
-**Data Stored:**
-- CVE ID, title, description
-- Published/modified dates
-- CVSS scores (JSON)
-- Affected products (JSON)
-- Category, exploit status
-- Source URL, load timestamp
+1. **Clone/Setup the Project**:
+   ```
+   git clone <repo-url>  # Or navigate to your local dir
+   cd threat-intelligence-pipeline
+   ```
 
-### 🥈 Silver Layer (Refined)
-**Purpose:** Transform raw data into analysis-ready dimensional model.
+2. **Create Virtual Environment**:
+   ```
+   python -m venv cenv
+   source cenv/bin/activate  # Linux/Mac
+   # Or on Windows: cenv\Scripts\activate
+   ```
 
-**Key Components:**
-- `create_silver_layer()`: Main transformation orchestrator
-- `parse_cvss_vector()`: Decodes CVSS metrics
-- Dimensional tables:
-  - `dim_cve`: One row per CVE
-  - `fact_cvss_scores`: CVSS metrics (can be multiple per CVE)
-  - `dim_products`: Unique vendors/products
-  - `bridge_cve_products`: Many-to-many relationships
+3. **Install Dependencies**:
+   ```
+   pip install -r requirements.txt
+   ```
 
-**Transformations Applied:**
-- Date parsing and normalization
-- JSON parsing (nested arrays → relational tables)
-- CVSS vector decoding (AV:N/AC:L → Attack Vector: Network, Attack Complexity: Low)
-- Data type validation
-- Duplicate removal
+4. **Download Historical NVD Data**:
+   Navigate to `Data/Raw/` and run:
+   ```
+   python download_zips.py
+   ```
+   This fetches ~200 MB of JSON ZIPs (2002–2025) from [NVD Data Feeds](https://nvd.nist.gov/vuln/data-feeds). Files will appear as `nvdcve-2.0-YYYY.json.zip`.
 
-### 🥇 Gold Layer (Analytics)
-**Purpose:** Aggregated views optimized for dashboards and reporting.
+5. **Configure Environment**:
+   Copy `example.env` to `.env` and fill in:
+   - Database: `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`.
+   - Telegram (for streaming): `TELEGRAM_API_ID`, `TELEGRAM_API_HASH`.
 
-**Future Features:**
-- Materialized views for:
-  - CVEs by severity over time
-  - Top affected vendors/products
-  - Exploitability trends
-  - CVSS score distributions
-- Pre-calculated KPIs
-- Data marts for specific use cases
+   Example `.env`:
+   ```
+   DB_HOST=localhost
+   DB_PORT=5432
+   DB_NAME=threat_intel_db
+   DB_USER=your_user
+   DB_PASSWORD=your_pass
+   TELEGRAM_API_ID=your_api_id
+   TELEGRAM_API_HASH=your_api_hash
+   ```
 
----
+6. **Setup PostgreSQL Database**:
+   - Create a database: `createdb threat_intel_db` (or via pgAdmin/psql).
+   - Run schema scripts in order (from `src/database/schemas/`):
+     ```
+     psql -h localhost -U your_user -d threat_intel_db -f bronze.sql
+     psql -h localhost -U your_user -d threat_intel_db -f silver.sql
+     psql -h localhost -U your_user -d threat_intel_db -f gold.sql
+     ```
+   - This creates tables/views for bronze (raw), silver (cleaned), and gold (aggregated) layers.
 
-## 📊 Example Queries
+## Usage
 
-### Find High-Severity CVEs
-```sql
-SELECT 
-    dc.cve_id,
-    dc.title,
-    fc.cvss_score,
-    fc.cvss_severity
-FROM silver.dim_cve dc
-JOIN silver.fact_cvss_scores fc ON dc.cve_id = fc.cve_id
-WHERE fc.cvss_severity = 'CRITICAL'
-  AND fc.cvss_version = 'CVSS 3.1'
-ORDER BY fc.cvss_score DESC
-LIMIT 10;
-```
+### Batch Processing (Historical NVD Data)
 
-### Most Vulnerable Products
-```sql
-SELECT 
-    vendor,
-    product_name,
-    total_cves,
-    first_cve_date,
-    last_cve_date
-FROM silver.dim_products
-ORDER BY total_cves DESC
-LIMIT 20;
-```
+Load ~313K historical CVEs into the data warehouse:
 
-### CVEs Affecting a Specific Vendor
-```sql
-SELECT 
-    dc.cve_id,
-    dc.published_date,
-    fc.cvss_score,
-    dp.product_name
-FROM silver.dim_cve dc
-JOIN silver.bridge_cve_products bcp ON dc.cve_id = bcp.cve_id
-JOIN silver.dim_products dp ON bcp.product_id = dp.product_id
-JOIN silver.fact_cvss_scores fc ON dc.cve_id = fc.cve_id
-WHERE dp.vendor ILIKE '%microsoft%'
-  AND fc.cvss_version = 'CVSS 3.1'
-ORDER BY dc.published_date DESC;
-```
+1. From project root:
+   ```
+   python src/pipeline/extract/nvd_json_to_bronze.py
+   ```
 
----
+2. **What Happens**:
+   - Extracts/unzips JSON from `Data/Raw/`.
+   - Loads raw data to bronze layer (`load_bronze_layer.py`).
+   - Performs EDA and transforms to silver (`nvd_EDA_bronze_to_silver.py`).
+   - Aggregates to gold (`transformation_to_gold.py`).
 
-## 📝 Logging
+3. **Verification**:
+   - Check `src/logs/load_bronze.log` for output (e.g., "313k rows inserted").
+   - Query bronze: `SELECT COUNT(*) FROM bronze.cve_raw;` (should be ~313K).
 
-All pipeline stages write detailed logs to `logs/` directory:
+### Streaming Processing (Live CVE Feeds)
 
-- **scraper.log**: Web scraping progress, HTTP errors, data extraction
-- **load_bronze.log**: Database insertion stats, conflicts, errors
-- **load_silver.log**: Transformation metrics, table loading
-- **bronze_to_silver.log**: End-to-end pipeline execution
+Ingest real-time CVEs from Telegram (CVE Monitor channel via CVEFeed.io):
 
-**Log Format:**
-```
-2025-10-14 01:32:15 - INFO - [342/10000] Scraping CVE-2024-1234...
-2025-10-14 01:32:17 - INFO -     ✓ Scores: CVSS 3.1: 7.5
-2025-10-14 01:32:17 - INFO -     Found 3 affected product(s)
-```
+1. Ensure Telegram API keys are in `.env`.
+2. From project root:
+   ```
+   python src/pipeline/extract/scrape_live_cvefeed_bronze.py
+   ```
 
----
+3. **What Happens**:
+   - Scrapes live CVE alerts from Telegram.
+   - Loads to bronze (`load_bronze_layer.py`).
+   - Performs EDA/transform to silver (`scrape_EDA_bronze_to_silver.py`).
+   - Aggregates to gold (`transformation_to_gold.py`).
 
-## 🛠️ Troubleshooting
+4. **Notes**:
+   - Runs continuously; interrupt with Ctrl+C.
+   - Logs in `src/logs/` for monitoring.
+   - Handles new CVEs incrementally (avoids duplicates via CVE ID).
 
-### Common Issues
+### BI Visualization & Querying
 
-**1. Database Connection Errors**
-```
-sqlalchemy.exc.OperationalError: could not connect to server
-```
-**Solution:** Verify PostgreSQL is running and credentials are correct.
+Once loaded, query the gold layer for insights:
+- **Example Queries** (run in psql or BI tool like Tableau/Metabase):
+  ```sql
+  -- High-severity CVEs (CVSS >= 7.0) in 2024
+  SELECT cve_id, description, cvss_score
+  FROM gold.cve_summary
+  WHERE published_year = 2024 AND cvss_score >= 7.0
+  ORDER BY cvss_score DESC;
 
-**2. Duplicate Key Violations**
-```
-psycopg2.errors.UniqueViolation: duplicate key value violates unique constraint
-```
-**Solution:** The pipeline uses `ON CONFLICT DO NOTHING`. If error persists, check unique constraints in schema.
+  -- Vendor vulnerability trends
+  SELECT vendor, COUNT(*) as vuln_count
+  FROM gold.cve_summary
+  GROUP BY vendor
+  ORDER BY vuln_count DESC;
+  ```
 
-**3. Rate Limiting (HTTP 429)**
-```
-requests.exceptions.HTTPError: 429 Too Many Requests
-```
-**Solution:** Increase `delay` parameter in `scrape_and_load_batch()` (default: 2 seconds).
+- **Gold Views** (see `src/database/schemas/gold_views.md` for details): Pre-built views for severity, timelines, vendors, etc.
+- Connect to PostgreSQL in your BI tool for dashboards (e.g., CVE trends over time).
 
----
+## Troubleshooting
 
-## 🤝 Contributing
+- **DB Connection Issues**: Verify `.env` creds and PostgreSQL running (`pg_isready`).
+- **Download Failures**: Check internet; NVD feeds may have rate limits.
+- **Telegram Scraping Errors**: Ensure API keys valid; session file in `.runtime/telegram.session`.
+- **Logs**: Always check `src/logs/` for errors (e.g., insertion failures).
+- **Dependencies**: If missing, `pip install psycopg2-binary telethon pandas sqlalchemy`.
 
-Contributions are welcome! Please follow these guidelines:
+## Contributing
 
-1. **Fork** the repository
-2. **Create** a feature branch (`git checkout -b feature/amazing-feature`)
-3. **Commit** your changes (`git commit -m 'Add amazing feature'`)
-4. **Push** to the branch (`git push origin feature/amazing-feature`)
-5. **Open** a Pull Request
+- Fork the repo and submit PRs.
+- Add tests for new modules.
+- Update schemas for schema evolution.
 
-### Code Style
-- Follow PEP 8 for Python code
-- Use meaningful variable names
-- Add docstrings to functions
-- Update logs and comments
+## Acknowledgments
 
----
-
-## 📄 License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
----
-
-## 👥 Authors
-
-**Data Engineering Team**  
-Contact: [Your Email]
-
----
-
-## 🙏 Acknowledgments
-
-- CVE data sourced from [cvefeed.io](https://cvefeed.io)
-- Inspired by medallion architecture patterns
-- Built with ❤️ for the security community
-
----
-
-## 📅 Roadmap
-
-- [ ] Implement Gold layer with materialized views
-- [ ] Add CLI interface for pipeline orchestration
-- [ ] Create Docker containerization
-- [ ] Build Airflow DAGs for scheduling
-- [ ] Add data quality tests (Great Expectations)
-- [ ] Integrate with BI tools (Tableau, Grafana)
-- [ ] Implement incremental loading (CDC)
-- [ ] Add API endpoints for real-time queries
-
----
-
-**Last Updated:** October 14, 2025  
-**Pipeline Version:** 1.0.0
-
-
-
-
-donc inspired by this article ; https://www.arxiv.org/pdf/2509.20943 qui parle de la contruction d'une dataset from telegram chanles , je fait l'intiative de traiter vraiment cet approche so j'ai tester un pipline etl data whearhouse bi sur une channel telegram : cve monitor qui donne des alerts des cve feed , so after that i discover the website cvefeed.io qui donne feed cve avec leur details so i decided to build a pipline for thta , so first i collect prevuis cve data il se trouve dans le site  : https://nvd.nist.gov/vuln/data-feeds , so the first thing in this projetc is to install josn data in the Data/Raw diroctory , after this we should install and configurate the postgress databse  , add configuration dans .env look at .example.env pour comprendre , after that we run the script for 3 couches de databse bronze.sql , silver.sql , gold.sql , look at the src/database/schemas , so after that we are ready for the first etl leur but c'est de remplir notre dataase par l'archive , so we run just nvd_json_to_bronze.py src/batch/extract he will automaticly run with jim les autres moules pour eda et pour laod et pour transform , verfier les loogs que tout et good (313k inserted in bronze dtabse ) after this we are ready now to run the script for real time scraping data , so we run src/stream/extract scrape_live_cvefeed_bronze.py (il faut etre sur que api et api hash soon bien enregistres dans .env , tu peut les prendre from [my.telegram.com](https://my.telegram.org/apps)), run the script scrape_live_cvefeed_bronze.py he will run autmaticly les autres scripts load transform .... so finnaly u are ready to vizualize ur BI using the gold datawharhosue 
+- NVD for CVE data.
+- Telethon library for Telegram scraping.
+- Inspired by arXiv:2509.20943.
