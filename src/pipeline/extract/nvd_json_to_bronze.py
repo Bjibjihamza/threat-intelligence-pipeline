@@ -38,7 +38,7 @@ import logging
 # CONFIG par défaut (surchargé par CLI)
 # -----------------------------------------------------------------------------
 DATA_DIR_DEFAULT = Path("../../../Data/Raw")
-YEARS_DEFAULT = list(range(2002, 2003))  # 2002..2025 inclus
+YEARS_DEFAULT = list(range(2002, 2026))  # 2002..2025 inclus
 ZIP_PATTERN = "nvdcve-2.0-{}.json.zip"
 
 # -----------------------------------------------------------------------------
