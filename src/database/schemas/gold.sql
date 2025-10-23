@@ -1,14 +1,32 @@
 -- ================================================================
--- GOLD LAYER SCHEMA (STAR SCHEMA) — V3 aligned with Silver (vulnarbilit)
+-- GOLD LAYER — Star Schema (V3 aligned with Silver: vulnarbilit)
 -- - No title/description/predicted_category
 -- - category → vulnarbilit
 -- - No materialized views
 -- ================================================================
 
+BEGIN;
+
 CREATE SCHEMA IF NOT EXISTS gold;
 SET search_path TO gold, public;
 
--- Clean out in dependency order
+-- ------------------------------------------------
+-- 1) DROP VIEWS (dependency-safe order)
+-- ------------------------------------------------
+DROP VIEW IF EXISTS gold.v_recent_cves       CASCADE;
+DROP VIEW IF EXISTS gold.v_cvss_buckets      CASCADE;
+DROP VIEW IF EXISTS gold.v_yearly_trend      CASCADE;
+DROP VIEW IF EXISTS gold.v_monthly_trend     CASCADE;
+DROP VIEW IF EXISTS gold.v_top_products      CASCADE;
+DROP VIEW IF EXISTS gold.v_top_vendors       CASCADE;
+DROP VIEW IF EXISTS gold.v_cve_vendor_summary CASCADE;
+DROP VIEW IF EXISTS gold.v_cve_fact          CASCADE;
+DROP VIEW IF EXISTS gold.v_cve_products      CASCADE;
+DROP VIEW IF EXISTS gold.v_cvss_v3_best      CASCADE;
+
+-- ------------------------------------------------
+-- 2) DROP TABLES (in dependency order)
+-- ------------------------------------------------
 DROP TABLE IF EXISTS gold.bridge_cve_products CASCADE;
 DROP TABLE IF EXISTS gold.cvss_v4 CASCADE;
 DROP TABLE IF EXISTS gold.cvss_v3 CASCADE;
@@ -18,9 +36,11 @@ DROP TABLE IF EXISTS gold.dim_vendor CASCADE;
 DROP TABLE IF EXISTS gold.dim_cvss_source CASCADE;
 DROP TABLE IF EXISTS gold.dim_cve CASCADE;
 
--- ================================================================
--- DIMENSION: DIM_CVE  (aligned to Silver)
--- ================================================================
+-- ------------------------------------------------
+-- 3) TABLES
+-- ------------------------------------------------
+
+-- DIM_CVE
 CREATE TABLE gold.dim_cve (
     cve_id            VARCHAR(20) PRIMARY KEY,
     vulnarbilit       VARCHAR(50) DEFAULT 'uncategorized',
@@ -32,15 +52,12 @@ CREATE TABLE gold.dim_cve (
     source_identifier TEXT,
     created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+CREATE INDEX idx_gold_dim_cve_published ON gold.dim_cve(published_date);
+CREATE INDEX idx_gold_dim_cve_year      ON gold.dim_cve(cve_year);
+CREATE INDEX idx_gold_dim_cve_class     ON gold.dim_cve(vulnarbilit);
+CREATE INDEX idx_gold_dim_cve_source    ON gold.dim_cve(source_identifier);
 
-CREATE INDEX idx_gold_dim_cve_published   ON gold.dim_cve(published_date);
-CREATE INDEX idx_gold_dim_cve_year        ON gold.dim_cve(cve_year);
-CREATE INDEX idx_gold_dim_cve_class       ON gold.dim_cve(vulnarbilit);
-CREATE INDEX idx_gold_dim_cve_source      ON gold.dim_cve(source_identifier);
-
--- ================================================================
--- DIMENSION: DIM_CVSS_SOURCE
--- ================================================================
+-- DIM_CVSS_SOURCE
 CREATE TABLE gold.dim_cvss_source (
     source_id   SERIAL PRIMARY KEY,
     source_name VARCHAR(100) UNIQUE NOT NULL,
@@ -48,9 +65,7 @@ CREATE TABLE gold.dim_cvss_source (
 );
 CREATE UNIQUE INDEX idx_gold_dim_source_name ON gold.dim_cvss_source(source_name);
 
--- ================================================================
--- DIMENSION: DIM_VENDOR
--- ================================================================
+-- DIM_VENDOR
 CREATE TABLE gold.dim_vendor (
     vendor_id      SERIAL PRIMARY KEY,
     vendor_name    VARCHAR(255) NOT NULL UNIQUE,
@@ -63,9 +78,7 @@ CREATE TABLE gold.dim_vendor (
 CREATE UNIQUE INDEX idx_gold_dim_vendor_name ON gold.dim_vendor(vendor_name);
 CREATE INDEX idx_gold_dim_vendor_cves ON gold.dim_vendor(total_cves);
 
--- ================================================================
--- DIMENSION: DIM_PRODUCTS
--- ================================================================
+-- DIM_PRODUCTS
 CREATE TABLE gold.dim_products (
     product_id     SERIAL PRIMARY KEY,
     vendor_id      INTEGER NOT NULL REFERENCES gold.dim_vendor(vendor_id) ON DELETE CASCADE,
@@ -80,9 +93,7 @@ CREATE INDEX idx_gold_dim_products_vendor ON gold.dim_products(vendor_id);
 CREATE INDEX idx_gold_dim_products_name   ON gold.dim_products(product_name);
 CREATE INDEX idx_gold_dim_products_cves   ON gold.dim_products(total_cves);
 
--- ================================================================
 -- FACT: CVSS_V2
--- ================================================================
 CREATE TABLE gold.cvss_v2 (
     cvss_v2_id  SERIAL PRIMARY KEY,
     cve_id      VARCHAR(20) NOT NULL REFERENCES gold.dim_cve(cve_id) ON DELETE CASCADE,
@@ -100,14 +111,12 @@ CREATE TABLE gold.cvss_v2 (
     cvss_impact_score         NUMERIC(3,1),
     created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-CREATE INDEX idx_gold_cvss_v2_cve     ON gold.cvss_v2(cve_id);
-CREATE INDEX idx_gold_cvss_v2_source  ON gold.cvss_v2(source_id);
-CREATE INDEX idx_gold_cvss_v2_score   ON gold.cvss_v2(cvss_score);
+CREATE INDEX idx_gold_cvss_v2_cve      ON gold.cvss_v2(cve_id);
+CREATE INDEX idx_gold_cvss_v2_source   ON gold.cvss_v2(source_id);
+CREATE INDEX idx_gold_cvss_v2_score    ON gold.cvss_v2(cvss_score);
 CREATE INDEX idx_gold_cvss_v2_severity ON gold.cvss_v2(cvss_severity);
 
--- ================================================================
 -- FACT: CVSS_V3
--- ================================================================
 CREATE TABLE gold.cvss_v3 (
     cvss_v3_id  SERIAL PRIMARY KEY,
     cve_id      VARCHAR(20) NOT NULL REFERENCES gold.dim_cve(cve_id) ON DELETE CASCADE,
@@ -134,9 +143,7 @@ CREATE INDEX idx_gold_cvss_v3_version  ON gold.cvss_v3(cvss_version);
 CREATE INDEX idx_gold_cvss_v3_score    ON gold.cvss_v3(cvss_score);
 CREATE INDEX idx_gold_cvss_v3_severity ON gold.cvss_v3(cvss_severity);
 
--- ================================================================
 -- FACT: CVSS_V4
--- ================================================================
 CREATE TABLE gold.cvss_v4 (
     cvss_v4_id  SERIAL PRIMARY KEY,
     cve_id      VARCHAR(20) NOT NULL REFERENCES gold.dim_cve(cve_id) ON DELETE CASCADE,
@@ -160,9 +167,7 @@ CREATE INDEX idx_gold_cvss_v4_source   ON gold.cvss_v4(source_id);
 CREATE INDEX idx_gold_cvss_v4_score    ON gold.cvss_v4(cvss_score);
 CREATE INDEX idx_gold_cvss_v4_severity ON gold.cvss_v4(cvss_severity);
 
--- ================================================================
 -- BRIDGE: CVE ↔ PRODUCTS
--- ================================================================
 CREATE TABLE gold.bridge_cve_products (
     bridge_id  SERIAL PRIMARY KEY,
     cve_id     VARCHAR(20) NOT NULL REFERENCES gold.dim_cve(cve_id) ON DELETE CASCADE,
@@ -173,13 +178,195 @@ CREATE TABLE gold.bridge_cve_products (
 CREATE INDEX idx_gold_bridge_cve     ON gold.bridge_cve_products(cve_id);
 CREATE INDEX idx_gold_bridge_product ON gold.bridge_cve_products(product_id);
 
--- Comments
+-- ------------------------------------------------
+-- 4) COMMENTS
+-- ------------------------------------------------
 COMMENT ON SCHEMA gold IS 'Gold Layer: Star Schema aligned to Silver (vulnarbilit only)';
 COMMENT ON TABLE gold.dim_cve IS 'CVE dimension: normalized class (vulnarbilit) + dates/meta';
 
+-- ------------------------------------------------
+-- 5) VIEWS
+-- ------------------------------------------------
 
+-- Best CVSS v3 row per CVE (tie-break by created_at desc)
+CREATE OR REPLACE VIEW gold.v_cvss_v3_best AS
+SELECT DISTINCT ON (cv3.cve_id)
+    cv3.cve_id,
+    cv3.source_id,
+    cv3.cvss_version,
+    cv3.cvss_score,
+    cv3.cvss_severity,
+    cv3.cvss_vector,
+    cv3.cvss_v3_base_av,
+    cv3.cvss_v3_base_ac,
+    cv3.cvss_v3_base_pr,
+    cv3.cvss_v3_base_ui,
+    cv3.cvss_v3_base_s,
+    cv3.cvss_v3_base_c,
+    cv3.cvss_v3_base_i,
+    cv3.cvss_v3_base_a,
+    cv3.cvss_exploitability_score,
+    cv3.cvss_impact_score,
+    cv3.created_at
+FROM gold.cvss_v3 AS cv3
+ORDER BY cv3.cve_id, cv3.cvss_score DESC NULLS LAST, cv3.created_at DESC NULLS LAST;
 
--- Analyze
+-- CVE × Product × Vendor names
+CREATE OR REPLACE VIEW gold.v_cve_products AS
+SELECT
+    b.cve_id,
+    p.product_id,
+    p.product_name,
+    v.vendor_id,
+    v.vendor_name,
+    b.created_at AS link_created_at
+FROM gold.bridge_cve_products AS b
+JOIN gold.dim_products       AS p ON p.product_id = b.product_id
+JOIN gold.dim_vendor         AS v ON v.vendor_id = p.vendor_id;
+
+-- Fact-like row per CVE
+CREATE OR REPLACE VIEW gold.v_cve_fact AS
+WITH cve_core AS (
+    SELECT
+        c.*,
+        CASE
+            WHEN c.cve_year IS NOT NULL
+                 AND (c.cve_year::text ~ '^\s*\d{4}\s*$')
+            THEN TRIM(c.cve_year::text)::int
+            WHEN c.published_date IS NOT NULL
+            THEN EXTRACT(YEAR FROM c.published_date)::int
+            ELSE NULL
+        END AS cve_year_int
+    FROM gold.dim_cve AS c
+)
+SELECT
+    cc.cve_id,
+    COALESCE(NULLIF(TRIM(cc.vulnarbilit), ''), 'uncategorized') AS category,
+    cc.published_date,
+    cc.last_modified,
+    cc.loaded_at,
+    cc.cve_year_int AS cve_year,
+    CASE
+        WHEN cc.remotely_exploit IS TRUE  THEN 'true'
+        WHEN cc.remotely_exploit IS FALSE THEN 'false'
+        ELSE 'unknown'
+    END AS remotely_exploit,
+    cc.source_identifier,
+    cc.created_at AS cve_created_at,
+    v3.cvss_version,
+    v3.cvss_score,
+    v3.cvss_severity,
+    v3.cvss_vector,
+    v3.cvss_v3_base_av AS base_av,
+    v3.cvss_v3_base_ac AS base_ac,
+    v3.cvss_v3_base_pr AS base_pr,
+    v3.cvss_v3_base_ui AS base_ui,
+    v3.cvss_v3_base_s  AS base_s,
+    v3.cvss_v3_base_c  AS base_c,
+    v3.cvss_v3_base_i  AS base_i,
+    v3.cvss_v3_base_a  AS base_a,
+    v3.cvss_exploitability_score,
+    v3.cvss_impact_score
+FROM cve_core AS cc
+LEFT JOIN gold.v_cvss_v3_best AS v3 ON v3.cve_id = cc.cve_id;
+
+-- Aggregations & trends
+CREATE OR REPLACE VIEW gold.v_top_vendors AS
+SELECT
+    cp.vendor_id,
+    cp.vendor_name,
+    COUNT(DISTINCT cp.cve_id) AS total_cves
+FROM gold.v_cve_products AS cp
+GROUP BY cp.vendor_id, cp.vendor_name;
+
+CREATE OR REPLACE VIEW gold.v_top_products AS
+SELECT
+    cp.product_id,
+    cp.product_name,
+    cp.vendor_id,
+    cp.vendor_name,
+    COUNT(DISTINCT cp.cve_id) AS total_cves
+FROM gold.v_cve_products AS cp
+GROUP BY cp.product_id, cp.product_name, cp.vendor_id, cp.vendor_name;
+
+CREATE OR REPLACE VIEW gold.v_monthly_trend AS
+SELECT
+    DATE_TRUNC('month', f.published_date)::date AS month_start,
+    COUNT(*)                                    AS total_cves
+FROM gold.v_cve_fact AS f
+GROUP BY 1
+ORDER BY 1;
+
+CREATE OR REPLACE VIEW gold.v_yearly_trend AS
+SELECT
+    f.cve_year,
+    COUNT(*) AS total_cves
+FROM gold.v_cve_fact AS f
+GROUP BY f.cve_year
+ORDER BY f.cve_year;
+
+CREATE OR REPLACE VIEW gold.v_cvss_buckets AS
+SELECT
+    CASE
+        WHEN f.cvss_score IS NULL THEN 'Unscored'
+        WHEN f.cvss_score < 4.0   THEN 'Low'
+        WHEN f.cvss_score < 7.0   THEN 'Medium'
+        WHEN f.cvss_score < 9.0   THEN 'High'
+        ELSE 'Critical'
+    END AS cvss_bucket,
+    COUNT(*) AS total_cves
+FROM gold.v_cve_fact AS f
+GROUP BY 1
+ORDER BY
+    CASE cvss_bucket
+        WHEN 'Unscored' THEN 0
+        WHEN 'Low'      THEN 1
+        WHEN 'Medium'   THEN 2
+        WHEN 'High'     THEN 3
+        WHEN 'Critical' THEN 4
+    END;
+
+CREATE OR REPLACE VIEW gold.v_recent_cves AS
+SELECT
+    f.cve_id,
+    f.published_date,
+    f.category,
+    f.cvss_score,
+    f.cvss_severity
+FROM gold.v_cve_fact AS f
+WHERE f.published_date >= (CURRENT_DATE - INTERVAL '30 days')
+ORDER BY f.published_date DESC, f.cvss_score DESC NULLS LAST;
+
+-- CVE x Vendor summary (re-uses v_cvss_v3_best)
+CREATE OR REPLACE VIEW gold.v_cve_vendor_summary AS
+WITH cve_vendor AS (
+  SELECT DISTINCT
+    b.cve_id,
+    p.vendor_id
+  FROM gold.bridge_cve_products b
+  JOIN gold.dim_products p ON p.product_id = b.product_id
+)
+SELECT
+  c.cve_id,
+  c.vulnarbilit AS category,
+  c.published_date,
+  c.last_modified,
+  c.cve_year::int AS cve_year,
+  c.remotely_exploit,
+  c.source_identifier,
+  v.vendor_id,
+  dv.vendor_name,
+  bv.cvss_score      AS cvss_v3_score_best,
+  bv.cvss_severity   AS cvss_v3_severity,
+  (bv.cvss_severity ILIKE 'CRITICAL') AS is_critical_v3
+FROM gold.dim_cve c
+LEFT JOIN cve_vendor v     ON v.cve_id = c.cve_id
+LEFT JOIN gold.dim_vendor dv ON dv.vendor_id = v.vendor_id
+LEFT JOIN gold.v_cvss_v3_best bv ON bv.cve_id = c.cve_id;
+
+-- ------------------------------------------------
+-- 6) ANALYZE
+-- ------------------------------------------------
 ANALYZE gold.dim_cve;
 ANALYZE gold.dim_cvss_source;
 ANALYZE gold.dim_vendor;
@@ -189,9 +376,11 @@ ANALYZE gold.cvss_v3;
 ANALYZE gold.cvss_v4;
 ANALYZE gold.bridge_cve_products;
 
+COMMIT;
+
 DO $$
 BEGIN
     RAISE NOTICE '===============================================================';
-    RAISE NOTICE 'GOLD LAYER SCHEMA CREATED (V3 aligned with Silver: vulnarbilit)';
+    RAISE NOTICE 'GOLD LAYER SCHEMA + VIEWS CREATED (V3 aligned with Silver)';
     RAISE NOTICE '===============================================================';
 END $$;
