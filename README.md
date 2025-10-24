@@ -54,7 +54,6 @@ threat-intelligence-pipeline/
 │   ├── utils/                # Helper utilities (e.g., CVSS parser)
 │   └── logs/                 # Runtime logs (e.g., load_bronze.log)
 ├── .env                      # Environment variables (DB creds, Telegram API)
-├── example.env               # Template for .env
 ├── requirements.txt          # Python dependencies
 └── README.md                 # This file
 ```
